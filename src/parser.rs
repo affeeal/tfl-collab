@@ -39,14 +39,14 @@ const ERR_INVALID_BRACKETS_SEQUENCE: &str = "invalid brackets sequence";
 const ERR_INVALID_LOOKAHEAD: &str = "invalid lookahead operation";
 
 pub fn parse(r: &str) -> Result<Vec<Token>, String> {
-    let mut stream = r.chars().peekable();
     let last = r.chars().last().clone();
+    let mut stream = r.chars().peekable();
 
     if stream.next() != Some('^') {
         return Err(ERR_INVALID_BEGIN.to_string());
     }
 
-    if last == None || last != Some('$') {
+    if stream.next_back() == None || last != Some('$') {
         return Err(ERR_INVALID_END.to_string());
     }
 
@@ -58,39 +58,57 @@ pub fn parse(r: &str) -> Result<Vec<Token>, String> {
 fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
     let mut regex = "".to_string();
     let mut tokens: Vec<Token> = vec![];
-    // TODO: добавить проверку на сивмол регуляри
-    while stream.peek() != None && stream.peek() != Some(&'$') {
+
+    while stream.peek() != None {
         let ch = stream.peek().unwrap();
-        if ch.eq(&'(') {
-            tokens.push(Token::Regex(regex.clone()));
-            let extracted = extract(stream)?;
-
-            match extracted {
-                Token::Lookahead(s) => tokens.push(Token::Lookahead(s.clone())),
-                Token::Regex(s) => {
-                    let mut tmp = parse_regex(&mut s.chars().peekable())?;
-
-                    tokens.push(Token::OpenBracket);
-                    tokens.append(&mut tmp);
-                    tokens.push(Token::CloseBracket);
+        match ch.clone() {
+            '(' => {
+                if !regex.is_empty() {
+                    tokens.push(Token::Regex(regex));
+                    regex = "".to_string();
                 }
-                _ => {}
+
+                let extracted = extract(stream)?;
+
+                match extracted {
+                    Token::Lookahead(s) => {
+                        let mut tmp = parse_lookahead(&mut s.chars().peekable())?;
+                        tokens.push(Token::OpenBracket);
+                        tokens.append(&mut tmp);
+                        tokens.push(Token::CloseBracket);
+                    }
+                    Token::Regex(s) => {
+                        let mut tmp = parse_regex(&mut s.chars().peekable())?;
+
+                        tokens.push(Token::OpenBracket);
+                        tokens.append(&mut tmp);
+                        tokens.push(Token::CloseBracket);
+                    }
+                    _ => {}
+                }
+                continue;
             }
-            regex = "".to_string();
-        } else if ch.eq(&')') {
-            println!("1234");
-            return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
-        } else if ch.eq(&'|') {
-            tokens.push(Token::Regex(regex.clone()));
-            tokens.push(Token::Binary("|".to_string()));
-            regex = "".to_string();
-        } else if ch.eq(&'*') {
-            tokens.push(Token::Regex(regex.clone()));
-            tokens.push(Token::Unary("*".to_string()));
-            regex = "".to_string();
-        } else {
-            regex.push(ch.clone());
-        }
+            ')' => {
+                return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
+            }
+            '|' => {
+                if !regex.is_empty() {
+                    tokens.push(Token::Regex(regex));
+                    regex = "".to_string();
+                }
+                tokens.push(Token::Binary("|".to_string()));
+            }
+            '*' => {
+                if !regex.is_empty() {
+                    tokens.push(Token::Regex(regex));
+                    regex = "".to_string();
+                }
+                tokens.push(Token::Unary("*".to_string()));
+            }
+            _ => {
+                regex.push(ch.clone());
+            }
+        };
         stream.next();
     }
 
@@ -126,7 +144,7 @@ fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<Token, String> {
         stream.next();
     }
 
-    while counter != 0 && stream.peek() != Some(&'$') {
+    while counter != 0 && stream.peek() != None {
         if stream.peek() == Some(&'(') {
             counter += 1;
         } else if stream.peek() == Some(&')') {
@@ -141,14 +159,77 @@ fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<Token, String> {
     };
 
     extracted_value.remove(extracted_value.len() - 1);
+
     match token_type {
         Token::Lookahead(_) => Ok(Token::Lookahead(extracted_value.to_string())),
         _ => Ok(Token::Regex(extracted_value.to_string())),
     }
 }
 
-fn parse_lookahead() {
-    unimplemented!();
+// <lookahead> ::= <lookahead><binary><lookahead> |
+//     (<lookahead>) |
+//     <lookahead><unary> |
+//     <symbol> | ε
+
+// TODO: протестировать с '$' в конце lookahead
+fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
+    let mut tokens = vec![];
+    let mut lookahead = "".to_string();
+
+    while stream.peek() != None {
+        let ch = stream.peek().unwrap();
+        match ch.clone() {
+            '(' => {
+                if !lookahead.is_empty() {
+                    tokens.push(Token::Regex(lookahead));
+                    lookahead = "".to_string();
+                }
+
+                let extracted = extract(stream)?;
+
+                match extracted {
+                    Token::Regex(s) => {
+                        let mut tmp = parse_lookahead(&mut s.chars().peekable())?;
+                        tokens.push(Token::OpenBracket);
+                        tokens.append(&mut tmp);
+                        tokens.push(Token::CloseBracket);
+                    }
+                    _ => {
+                        return Err(ERR_INVALID_LOOKAHEAD.to_string());
+                    }
+                };
+
+                continue;
+            }
+            '|' => {
+                if !lookahead.is_empty() {
+                    tokens.push(Token::Lookahead(lookahead));
+                    lookahead = "".to_string();
+                }
+                tokens.push(Token::Binary("|".to_string()))
+            }
+            ')' => {
+                return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
+            }
+            '*' => {
+                if !lookahead.is_empty() {
+                    tokens.push(Token::Lookahead(lookahead));
+                    lookahead = "".to_string();
+                }
+
+                tokens.push(Token::Unary("*".to_string()))
+            }
+
+            _ => lookahead.push(ch.clone()),
+        }
+        stream.next();
+    }
+
+    if !lookahead.is_empty() {
+        tokens.push(Token::Lookahead(lookahead));
+    }
+
+    Ok(tokens)
 }
 
 #[cfg(test)]
@@ -174,7 +255,6 @@ mod tests {
     fn simple_string() {
         let regex = "^test$".to_string();
         let res = parse(&regex);
-        println!("{:?}", res);
         assert!(res.is_ok());
         let tokens = res.unwrap();
         assert!(tokens.len() == 1);
@@ -221,11 +301,87 @@ mod tests {
         let regex1 = "^test(abc)$".to_string();
 
         let res = parse(&regex1);
-        println!("{:?}", res);
         assert!(res.is_ok_and(|tokens| tokens.len() == 4
             && matches!(tokens[0], Token::Regex(..))
             && matches!(tokens[1], Token::OpenBracket)
             && matches!(tokens[2], Token::Regex(..))
             && matches!(tokens[3], Token::CloseBracket)));
+    }
+
+    #[test]
+    fn valid_brackets_hard() {
+        let regex1 = "^(te|st)*(abc)$".to_string();
+
+        let res = parse(&regex1);
+        assert!(res.is_ok_and(|tokens| tokens.len() == 9
+            && matches!(tokens[0], Token::OpenBracket)
+            && matches!(tokens[1], Token::Regex(..))
+            && matches!(tokens[2], Token::Binary(..))
+            && matches!(tokens[3], Token::Regex(..))
+            && matches!(tokens[4], Token::CloseBracket)
+            && matches!(tokens[5], Token::Unary(..))
+            && matches!(tokens[6], Token::OpenBracket)
+            && matches!(tokens[7], Token::Regex(..))
+            && matches!(tokens[8], Token::CloseBracket)));
+
+        let regex2 = "^(test|(abc)*)*(abc)$".to_string();
+        let res = parse(&regex2);
+        assert!(res.is_ok_and(|tokens| tokens.len() == 12
+            && matches!(tokens[0], Token::OpenBracket)
+            && matches!(tokens[1], Token::Regex(..))
+            && matches!(tokens[2], Token::Binary(..))
+            && matches!(tokens[3], Token::OpenBracket)
+            && matches!(tokens[4], Token::Regex(..))
+            && matches!(tokens[5], Token::CloseBracket)
+            && matches!(tokens[6], Token::Unary(..))
+            && matches!(tokens[7], Token::CloseBracket)
+            && matches!(tokens[8], Token::Unary(..))
+            && matches!(tokens[9], Token::OpenBracket)
+            && matches!(tokens[10], Token::Regex(..))
+            && matches!(tokens[11], Token::CloseBracket)));
+    }
+
+    #[test]
+    fn lookahead_simple() {
+        let regex = "^a(?=abc)$";
+
+        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 4
+            && matches!(tokens[0], Token::Regex(..))
+            && matches!(tokens[1], Token::OpenBracket)
+            && matches!(tokens[2], Token::Lookahead(..))
+            && matches!(tokens[3], Token::CloseBracket)));
+
+        let regex = "^a(?=(abc|kd))abc$";
+
+        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 9
+            && matches!(tokens[0], Token::Regex(..))
+            && matches!(tokens[1], Token::OpenBracket)
+            && matches!(tokens[2], Token::OpenBracket)
+            && matches!(tokens[3], Token::Lookahead(..))
+            && matches!(tokens[4], Token::Binary(..))
+            && matches!(tokens[5], Token::Lookahead(..))
+            && matches!(tokens[6], Token::CloseBracket)
+            && matches!(tokens[7], Token::CloseBracket)
+            && matches!(tokens[8], Token::Regex(..))));
+    }
+
+	#[test]
+    fn lookahead_hard() {
+        let regex = "^a(?=((ab)*c|kd))abc$";
+
+        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 13
+            && matches!(tokens[0], Token::Regex(..))
+            && matches!(tokens[1], Token::OpenBracket)
+            && matches!(tokens[2], Token::OpenBracket)
+            && matches!(tokens[3], Token::OpenBracket)
+            && matches!(tokens[4], Token::Lookahead(..))
+            && matches!(tokens[5], Token::CloseBracket)
+            && matches!(tokens[6], Token::Unary(..))
+            && matches!(tokens[7], Token::Lookahead(..))
+            && matches!(tokens[8], Token::Binary(..))
+            && matches!(tokens[9], Token::Lookahead(..))
+            && matches!(tokens[10], Token::CloseBracket)
+            && matches!(tokens[11], Token::CloseBracket)
+            && matches!(tokens[12], Token::Regex(..))));
     }
 }
