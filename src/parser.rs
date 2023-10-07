@@ -7,7 +7,8 @@ pub enum Token {
     Regex(String),
     Unary(String),
     Lookahead(String),
-    LineEnd,
+    LookaheadGroup(Vec<Token>),
+    StringEnd,
     OpenBracket,
     CloseBracket,
 }
@@ -63,10 +64,8 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
 
                 match extracted {
                     Token::Lookahead(s) => {
-                        let mut tmp = parse_lookahead(&mut s.chars().peekable())?;
-                        tokens.push(Token::OpenBracket);
-                        tokens.append(&mut tmp);
-                        tokens.push(Token::CloseBracket);
+                        let tmp = parse_lookahead(&mut s.chars().peekable())?;
+                        tokens.push(Token::LookaheadGroup(tmp));
                     }
                     Token::Regex(s) => {
                         let mut tmp = parse_regex(&mut s.chars().peekable())?;
@@ -79,20 +78,27 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                 }
                 continue;
             }
+
             ')' => {
                 return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
             }
+
             '|' => {
                 if !regex.is_empty() {
                     tokens.push(Token::Regex(regex));
-                } else {
+                }
+
+                // ^|a$ is invalid
+                if tokens.is_empty() {
                     return Err(ERR_INVALID_OPERATION.to_string());
                 }
 
                 tokens.push(Token::Binary("|".to_string()));
                 stream.next();
+
                 let mut tmp = parse_regex(stream)?;
 
+                // ^a|$ is invalid
                 if tmp.is_empty() {
                     return Err(ERR_INVALID_OPERATION.to_string());
                 }
@@ -100,6 +106,7 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                 tokens.append(&mut tmp);
                 return Ok(tokens);
             }
+
             '*' => {
                 if !regex.is_empty() {
                     tokens.push(Token::Regex(regex));
@@ -110,10 +117,16 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                     return Err(ERR_INVALID_OPERATION.to_string());
                 }
 
+                // ()* is invalid
                 if tokens.len() > 2
                     && matches!(tokens[tokens.len() - 1], Token::CloseBracket)
                     && matches!(tokens[tokens.len() - 2], Token::OpenBracket)
                 {
+                    return Err(ERR_INVALID_OPERATION.to_string());
+                }
+
+                // (?=...)* is invalid
+                if matches!(tokens.last(), Some(Token::LookaheadGroup(..))) {
                     return Err(ERR_INVALID_OPERATION.to_string());
                 }
 
@@ -217,10 +230,13 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
 
                 continue;
             }
+
             '|' => {
                 if !lookahead.is_empty() {
                     tokens.push(Token::Lookahead(lookahead));
-                } else {
+                }
+
+                if tokens.is_empty() {
                     return Err(ERR_INVALID_OPERATION.to_string());
                 }
 
@@ -236,9 +252,11 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
 
                 return Ok(tokens);
             }
+
             ')' => {
                 return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
             }
+
             '$' => {
                 stream.next();
 
@@ -249,10 +267,11 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
                 if !lookahead.is_empty() {
                     tokens.push(Token::Lookahead(lookahead));
                 }
-                tokens.push(Token::LineEnd);
+                tokens.push(Token::StringEnd);
 
                 return Ok(tokens);
             }
+
             '*' => {
                 if !lookahead.is_empty() {
                     tokens.push(Token::Lookahead(lookahead));
@@ -332,6 +351,7 @@ mod tests {
             && matches!(tokens[2], Token::Regex { .. })));
 
         let regex = "^ab(())*cd$";
+
         assert!(parse(regex).is_ok());
     }
 
@@ -389,6 +409,7 @@ mod tests {
         let regex1 = "^(te|st)*(abc)$".to_string();
 
         let res = parse(&regex1);
+
         assert!(res.is_ok_and(|tokens| tokens.len() == 9
             && matches!(tokens[0], Token::OpenBracket)
             && matches!(tokens[1], Token::Regex(..))
@@ -421,25 +442,28 @@ mod tests {
     fn lookahead_simple() {
         let regex = "^a(?=abc)$";
 
-        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 4
-            && matches!(tokens[0], Token::Regex(..))
-            && matches!(tokens[1], Token::OpenBracket)
-            && matches!(tokens[2], Token::Lookahead(..))
-            && matches!(tokens[3], Token::CloseBracket)));
+        let res = parse(regex);
+        assert!(res.is_ok_and(|tokens| {
+            tokens.len() == 2
+                && matches!(tokens[0], Token::Regex(..))
+                && matches!(tokens[1], Token::LookaheadGroup(..))
+        }));
+
+		let tokens = parse(regex).unwrap();
 
         let regex = "^a(?=abc$)$";
 
-        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 5
+        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 2
             && matches!(tokens[0], Token::Regex(..))
-            && matches!(tokens[1], Token::OpenBracket)
-            && matches!(tokens[2], Token::Lookahead(..))
-            && matches!(tokens[3], Token::LineEnd)
-            && matches!(tokens[4], Token::CloseBracket)));
+            && matches!(tokens[1], Token::LookaheadGroup(..))));
     }
 
     #[test]
     fn lookahead_invalid() {
         let regex = "^a(?=abc))$";
+        assert!(parse(regex).is_err());
+		
+        let regex = "^a(?=abc)*abc$";
         assert!(parse(regex).is_err());
     }
 
@@ -447,32 +471,16 @@ mod tests {
     fn lookahead_hard() {
         let regex = "^a(?=((ab)*c|kd))abc$";
 
-        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 13
+        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 3
             && matches!(tokens[0], Token::Regex(..))
-            && matches!(tokens[1], Token::OpenBracket)
-            && matches!(tokens[2], Token::OpenBracket)
-            && matches!(tokens[3], Token::OpenBracket)
-            && matches!(tokens[4], Token::Lookahead(..))
-            && matches!(tokens[5], Token::CloseBracket)
-            && matches!(tokens[6], Token::Unary(..))
-            && matches!(tokens[7], Token::Lookahead(..))
-            && matches!(tokens[8], Token::Binary(..))
-            && matches!(tokens[9], Token::Lookahead(..))
-            && matches!(tokens[10], Token::CloseBracket)
-            && matches!(tokens[11], Token::CloseBracket)
-            && matches!(tokens[12], Token::Regex(..))));
+            && matches!(tokens[1], Token::LookaheadGroup(..))
+            && matches!(tokens[2], Token::Regex(..))));
 
         let regex = "^a(?=(abc|kd))abc$";
 
-        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 9
+        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 3
             && matches!(tokens[0], Token::Regex(..))
-            && matches!(tokens[1], Token::OpenBracket)
-            && matches!(tokens[2], Token::OpenBracket)
-            && matches!(tokens[3], Token::Lookahead(..))
-            && matches!(tokens[4], Token::Binary(..))
-            && matches!(tokens[5], Token::Lookahead(..))
-            && matches!(tokens[6], Token::CloseBracket)
-            && matches!(tokens[7], Token::CloseBracket)
-            && matches!(tokens[8], Token::Regex(..))));
+            && matches!(tokens[1], Token::LookaheadGroup(..))
+            && matches!(tokens[2], Token::Regex(..))));
     }
 }
