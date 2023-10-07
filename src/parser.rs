@@ -85,10 +85,20 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
             '|' => {
                 if !regex.is_empty() {
                     tokens.push(Token::Regex(regex));
-                    regex = "".to_string();
+                } else {
+                    return Err(ERR_INVALID_OPERATION.to_string());
                 }
 
                 tokens.push(Token::Binary("|".to_string()));
+                stream.next();
+                let mut tmp = parse_regex(stream)?;
+
+                if tmp.is_empty() {
+                    return Err(ERR_INVALID_OPERATION.to_string());
+                }
+
+                tokens.append(&mut tmp);
+                return Ok(tokens);
             }
             '*' => {
                 if !regex.is_empty() {
@@ -170,7 +180,6 @@ fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<Token, String> {
     <symbol> | ε
 */
 
-// TODO: протестировать с '$' в конце lookahead
 fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
     let mut tokens = vec![];
     let mut lookahead = "".to_string();
@@ -203,32 +212,49 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
             '|' => {
                 if !lookahead.is_empty() {
                     tokens.push(Token::Lookahead(lookahead));
-                    lookahead = "".to_string();
+                } else {
+                    return Err(ERR_INVALID_OPERATION.to_string());
                 }
-                tokens.push(Token::Binary("|".to_string()))
+
+                tokens.push(Token::Binary("|".to_string()));
+                stream.next();
+                let mut tmp = parse_lookahead(stream)?;
+
+                if tmp.is_empty() {
+                    return Err(ERR_INVALID_OPERATION.to_string());
+                }
+
+                tokens.append(&mut tmp);
+
+                return Ok(tokens);
             }
             ')' => {
                 return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
             }
             '$' => {
                 stream.next();
-				
+
                 if stream.peek().is_some() {
                     return Err(ERR_INVALID_LOOKAHEAD.to_string());
                 }
 
+                if !lookahead.is_empty() {
+                    tokens.push(Token::Lookahead(lookahead));
+                }
                 tokens.push(Token::LineEnd);
+
+                return Ok(tokens);
             }
             '*' => {
                 if !lookahead.is_empty() {
                     tokens.push(Token::Lookahead(lookahead));
                     lookahead = "".to_string();
                 }
-				
+
                 if tokens.is_empty() {
                     return Err(ERR_INVALID_OPERATION.to_string());
                 }
-				
+
                 tokens.push(Token::Unary("*".to_string()))
             }
 
@@ -275,8 +301,8 @@ mod tests {
 
     #[test]
     fn simple_unary() {
-        let regex = "^test*$".to_string();
-        let res = parse(&regex);
+        let regex = "^test*$";
+        let res = parse(regex);
         assert!(res.is_ok_and(|tokens| tokens.len() == 2
             && matches!(tokens[0], Token::Regex { .. })
             && matches!(tokens[1], Token::Unary { .. })));
@@ -284,12 +310,30 @@ mod tests {
 
     #[test]
     fn simple_binary() {
-        let regex = "^test|iu9$".to_string();
-        let res = parse(&regex);
+        let regex = "^test|iu9$";
+        let res = parse(regex);
         assert!(res.is_ok_and(|tokens| tokens.len() == 3
             && matches!(tokens[0], Token::Regex { .. })
             && matches!(tokens[1], Token::Binary { .. })
             && matches!(tokens[2], Token::Regex { .. })));
+    }
+
+    #[test]
+    fn invalid_binary() {
+        let regex = "^5|$";
+        assert!(parse(regex).is_err());
+
+        let regex = "^|6$";
+        assert!(parse(regex).is_err());
+
+        let regex = "^|$";
+        assert!(parse(regex).is_err());
+    }
+
+    #[test]
+    fn invalid_unary() {
+        let regex = "^*abcd$";
+        assert!(parse(regex).is_err());
     }
 
     #[test]
@@ -362,6 +406,15 @@ mod tests {
             && matches!(tokens[1], Token::OpenBracket)
             && matches!(tokens[2], Token::Lookahead(..))
             && matches!(tokens[3], Token::CloseBracket)));
+
+        let regex = "^a(?=abc$)$";
+
+        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 5
+            && matches!(tokens[0], Token::Regex(..))
+            && matches!(tokens[1], Token::OpenBracket)
+            && matches!(tokens[2], Token::Lookahead(..))
+            && matches!(tokens[3], Token::LineEnd)
+            && matches!(tokens[4], Token::CloseBracket)));
     }
 
     #[test]
