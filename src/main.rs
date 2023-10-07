@@ -1,3 +1,9 @@
+mod ast;
+mod automata;
+mod formalism;
+
 fn main() {
-    println!("Hello, world!");
+    let regex = "(ab|b)*a|a(a|b)b*";
+    let (linearized_symbols, ast_root) = ast::parse(&regex);
+    dbg!(automata::Glushkov::new(&linearized_symbols, &ast_root));
 }
