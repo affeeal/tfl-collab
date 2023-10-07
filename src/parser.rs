@@ -18,7 +18,6 @@ const ERR_INVALID_END: &str = "regex must be end with '$'";
 const ERR_INVALID_BRACKETS_SEQUENCE: &str = "invalid brackets sequence";
 const ERR_INVALID_LOOKAHEAD: &str = "invalid lookahead operation";
 const ERR_INVALID_OPERATION: &str = "invalid operation";
-const ERR_EMPTY_REGEX: &str = "found empty regex";
 
 // <init> ::= ∧<regex>$
 
@@ -72,10 +71,6 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                     Token::Regex(s) => {
                         let mut tmp = parse_regex(&mut s.chars().peekable())?;
 
-                        if tmp.is_empty() {
-                            return Err(ERR_EMPTY_REGEX.to_string());
-                        }
-
                         tokens.push(Token::OpenBracket);
                         tokens.append(&mut tmp);
                         tokens.push(Token::CloseBracket);
@@ -112,6 +107,13 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                 }
 
                 if tokens.is_empty() {
+                    return Err(ERR_INVALID_OPERATION.to_string());
+                }
+
+                if tokens.len() > 2
+                    && matches!(tokens[tokens.len() - 1], Token::CloseBracket)
+                    && matches!(tokens[tokens.len() - 2], Token::OpenBracket)
+                {
                     return Err(ERR_INVALID_OPERATION.to_string());
                 }
 
@@ -203,10 +205,6 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
                 match extracted {
                     Token::Regex(s) => {
                         let mut tmp = parse_lookahead(&mut s.chars().peekable())?;
-						
-                        if tmp.is_empty() {
-                            return Err(ERR_EMPTY_REGEX.to_string());
-                        }
 
                         tokens.push(Token::OpenBracket);
                         tokens.append(&mut tmp);
@@ -265,6 +263,12 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
                     return Err(ERR_INVALID_OPERATION.to_string());
                 }
 
+                if tokens.len() > 2
+                    && matches!(tokens[tokens.len() - 1], Token::CloseBracket)
+                    && matches!(tokens[tokens.len() - 2], Token::OpenBracket)
+                {
+                    return Err(ERR_INVALID_OPERATION.to_string());
+                }
                 tokens.push(Token::Unary("*".to_string()))
             }
 
@@ -326,6 +330,9 @@ mod tests {
             && matches!(tokens[0], Token::Regex { .. })
             && matches!(tokens[1], Token::Binary { .. })
             && matches!(tokens[2], Token::Regex { .. })));
+
+        let regex = "^ab(())*cd$";
+        assert!(parse(regex).is_ok());
     }
 
     #[test]
@@ -343,6 +350,9 @@ mod tests {
     #[test]
     fn invalid_unary() {
         let regex = "^*abcd$";
+        assert!(parse(regex).is_err());
+
+        let regex = "^ab()*cd$";
         assert!(parse(regex).is_err());
     }
 
