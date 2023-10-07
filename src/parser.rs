@@ -18,6 +18,7 @@ const ERR_INVALID_END: &str = "regex must be end with '$'";
 const ERR_INVALID_BRACKETS_SEQUENCE: &str = "invalid brackets sequence";
 const ERR_INVALID_LOOKAHEAD: &str = "invalid lookahead operation";
 const ERR_INVALID_OPERATION: &str = "invalid operation";
+const ERR_EMPTY_REGEX: &str = "found empty regex";
 
 // <init> ::= ∧<regex>$
 
@@ -70,6 +71,10 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                     }
                     Token::Regex(s) => {
                         let mut tmp = parse_regex(&mut s.chars().peekable())?;
+
+                        if tmp.is_empty() {
+                            return Err(ERR_EMPTY_REGEX.to_string());
+                        }
 
                         tokens.push(Token::OpenBracket);
                         tokens.append(&mut tmp);
@@ -198,6 +203,11 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
                 match extracted {
                     Token::Regex(s) => {
                         let mut tmp = parse_lookahead(&mut s.chars().peekable())?;
+						
+                        if tmp.is_empty() {
+                            return Err(ERR_EMPTY_REGEX.to_string());
+                        }
+
                         tokens.push(Token::OpenBracket);
                         tokens.append(&mut tmp);
                         tokens.push(Token::CloseBracket);
