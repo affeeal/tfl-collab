@@ -19,6 +19,7 @@ const ERR_INVALID_END: &str = "regex must be end with '$'";
 const ERR_INVALID_BRACKETS_SEQUENCE: &str = "invalid brackets sequence";
 const ERR_INVALID_LOOKAHEAD: &str = "invalid lookahead operation";
 const ERR_INVALID_OPERATION: &str = "invalid operation";
+const ERR_EMPTY_BRACKETS: &str = "empty brackets";
 
 // <init> ::= ∧<regex>$
 
@@ -69,7 +70,6 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                     }
                     Token::Regex(s) => {
                         let mut tmp = parse_regex(&mut s.chars().peekable())?;
-
                         tokens.push(Token::OpenBracket);
                         tokens.append(&mut tmp);
                         tokens.push(Token::CloseBracket);
@@ -186,6 +186,10 @@ fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<Token, String> {
     };
 
     extracted_value.remove(extracted_value.len() - 1);
+
+    if extracted_value.is_empty() {
+        return Err(ERR_EMPTY_BRACKETS.to_string());
+    }
 
     match token_type {
         Token::Lookahead(_) => Ok(Token::Lookahead(extracted_value.to_string())),
@@ -349,10 +353,6 @@ mod tests {
             && matches!(tokens[0], Token::Regex { .. })
             && matches!(tokens[1], Token::Binary { .. })
             && matches!(tokens[2], Token::Regex { .. })));
-
-        let regex = "^ab(())*cd$";
-
-        assert!(parse(regex).is_ok());
     }
 
     #[test]
@@ -373,6 +373,10 @@ mod tests {
         assert!(parse(regex).is_err());
 
         let regex = "^ab()*cd$";
+        assert!(parse(regex).is_err());
+
+        let regex = "^ab(())*cd$";
+
         assert!(parse(regex).is_err());
     }
 
@@ -446,23 +450,27 @@ mod tests {
         assert!(res.is_ok_and(|tokens| {
             tokens.len() == 2
                 && matches!(tokens[0], Token::Regex(..))
-                && matches!(tokens[1], Token::LookaheadGroup(..))
+				&& matches!(&tokens[1], Token::LookaheadGroup(group) if group.len() == 1 && matches!(&group[0], Token::Lookahead(l) if l == "abc"))
         }));
-
-		let tokens = parse(regex).unwrap();
 
         let regex = "^a(?=abc$)$";
 
         assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 2
             && matches!(tokens[0], Token::Regex(..))
             && matches!(tokens[1], Token::LookaheadGroup(..))));
+
+        let l = parse(regex).unwrap();
+
+        assert!(
+            matches!(&l[1], Token::LookaheadGroup(group) if group.len() == 2 && matches!(&group[0], Token::Lookahead(..)) && matches!(&group[1], Token::StringEnd))
+        );
     }
 
     #[test]
     fn lookahead_invalid() {
         let regex = "^a(?=abc))$";
         assert!(parse(regex).is_err());
-		
+
         let regex = "^a(?=abc)*abc$";
         assert!(parse(regex).is_err());
     }
