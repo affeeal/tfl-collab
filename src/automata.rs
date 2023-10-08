@@ -53,7 +53,7 @@ impl Glushkov {
             let start_transitions = iter.next().unwrap();
             start_transitions[1..a1.size]
                 .clone_from_slice(&a1.transition_matrix[Self::START_STATE][1..]);
-            start_transitions[a1.size..size]
+            start_transitions[a1.size..]
                 .clone_from_slice(&a2.transition_matrix[Self::START_STATE][1..]);
         }
 
@@ -62,16 +62,16 @@ impl Glushkov {
             a1_transitions[1..a1.size].clone_from_slice(&a1.transition_matrix[i][1..]);
         }
 
-        for i in a1.size..size {
+        for i in 1..a2.size {
             let a2_transitions = iter.next().unwrap();
-            a2_transitions[a1.size..size].clone_from_slice(&a2.transition_matrix[i][1..]);
+            a2_transitions[a1.size..].clone_from_slice(&a2.transition_matrix[i][1..]);
         }
 
         let mut finite_states = vec![false; size];
         finite_states[Self::START_STATE] =
             a1.finite_states[Self::START_STATE] || a2.finite_states[Self::START_STATE];
         finite_states[1..a1.size].clone_from_slice(&a1.finite_states[1..]);
-        finite_states[a1.size..size].clone_from_slice(&a2.finite_states[1..]);
+        finite_states[a1.size..].clone_from_slice(&a2.finite_states[1..]);
 
         Self {
             start_states,
@@ -81,7 +81,45 @@ impl Glushkov {
         }
     }
 
-    // TODO: concatenation, intersection
+    pub fn concatenation(a1: &Self, a2: &Self) -> Self {
+        let size = a1.size + a2.size - 1;
+
+        let mut start_states = vec![false; size];
+        start_states[Self::START_STATE] = true;
+
+        let mut transition_matrix = vec![vec![None; size]; size];
+        let mut iter = transition_matrix.iter_mut();
+
+        for i in 0..a1.size {
+            let transitions = iter.next().unwrap();
+            transitions[1..a1.size].clone_from_slice(&a1.transition_matrix[i][1..]);
+            if a1.finite_states[i] {
+                transitions[a1.size..]
+                    .clone_from_slice(&a2.transition_matrix[Self::START_STATE][1..]);
+            }
+        }
+
+        for i in 1..a2.size {
+            let transitions = iter.next().unwrap();
+            transitions[a1.size..].clone_from_slice(&a2.transition_matrix[i][1..]);
+        }
+
+        let mut finite_states = vec![false; size];
+        if a2.finite_states[Self::START_STATE] {
+            finite_states[..a1.size].clone_from_slice(a1.finite_states.as_slice());
+        }
+        finite_states[a1.size..].clone_from_slice(&a2.finite_states[1..]);
+
+        Self {
+            start_states,
+            transition_matrix,
+            finite_states,
+            size,
+        }
+
+    }
+
+    // TODO: intersection
 
     // TODO: tests
 }
