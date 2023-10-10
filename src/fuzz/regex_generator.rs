@@ -120,13 +120,23 @@ fn generate_rec(
                 );
             }
 
-            let rhs = generate_rec(
+            let mut rhs = generate_rec(
                 letter_count - letter_count / 2,
                 star_height,
                 lookahead_count - lookahead_count / 2,
                 call_number + 1,
                 conf,
             );
+
+            while lhs.eq(&rhs) {
+                rhs = generate_rec(
+                    letter_count - letter_count / 2,
+                    star_height,
+                    lookahead_count - lookahead_count / 2,
+                    call_number + 1,
+                    conf,
+                );
+            }
 
             if lhs.is_empty() || rhs.is_empty() {
                 return generate_rec(
@@ -137,6 +147,7 @@ fn generate_rec(
                     conf,
                 );
             }
+
             return format!("({}|{})", lhs, rhs);
         }
 
@@ -152,14 +163,7 @@ fn generate_rec(
                 );
             }
 
-            let regex = generate_rec(
-                letter_count,
-                star_height - 1,
-                lookahead_count,
-                call_number + 1,
-                conf,
-            );
-
+            let regex = generate_rec(letter_count, star_height - 1, 0, call_number + 1, conf);
             if regex.len() > 1 {
                 return format!("({})*", regex);
             } else if regex.len() == 1 {
@@ -249,11 +253,8 @@ fn generate_lookahed(letter_count: usize, star_height: usize, conf: &mut Config)
                 return generate_lookahed(letter_count, star_height, conf);
             }
 
-            let mut r = generate_lookahed(letter_count, star_height - 1, conf);
+            let r = generate_lookahed(letter_count, star_height - 1, conf);
 
-            if r.contains("(?=") {
-                r = generate_lookahed(letter_count, star_height - 1, conf);
-            }
             if r.len() > 1 {
                 return format!("({})*", r);
             } else if r.len() == 1 {
