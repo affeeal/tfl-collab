@@ -24,7 +24,6 @@ pub fn generate(c: &Config, rcount: i32) -> Vec<String> {
             c.max_letter_count,
             c.star_height,
             c.max_lookahead_count,
-            0,
             &mut c.clone(),
         );
         result.push(format!("^{}$", regex));
@@ -47,7 +46,6 @@ fn generate_rec(
     letter_count: usize,
     star_height: usize,
     lookahead_count: usize,
-    call_number: usize,
     conf: &mut Config,
 ) -> String {
     if letter_count == 0 {
@@ -62,69 +60,30 @@ fn generate_rec(
         // concat
         0 => {
             let mut tmp = conf.clone();
-            let mut lhs = generate_rec(
-                letter_count / 2,
-                star_height,
-                lookahead_count / 2,
-                call_number + 1,
-                &mut tmp,
-            );
-
-            if call_number == 0 && lhs.starts_with("(?=") {
-                lhs = generate_rec(
-                    letter_count / 2,
-                    star_height,
-                    lookahead_count - lookahead_count / 2,
-                    call_number + 1,
-                    &mut tmp,
-                );
-            }
+            let lhs = generate_rec(letter_count / 2, star_height, lookahead_count / 2, &mut tmp);
 
             let rhs = generate_rec(
                 letter_count - letter_count / 2,
                 lookahead_count - lookahead_count / 2,
                 star_height,
-                call_number + 1,
                 &mut tmp,
             );
             return format!("{}{}", lhs, rhs);
         }
 
         // or
+        // TODO: исключисть ситуацию с альтернативой, lookahead и конкатенацией
         1 => {
             if letter_count < 2 {
-                return generate_rec(
-                    letter_count,
-                    star_height,
-                    lookahead_count,
-                    call_number,
-                    conf,
-                );
+                return generate_rec(letter_count, star_height, lookahead_count, conf);
             }
 
-            let mut lhs = generate_rec(
-                letter_count / 2,
-                star_height,
-                lookahead_count / 2,
-                call_number + 1,
-                conf,
-            );
-
-            if call_number == 0 && lhs.starts_with("(?=") {
-                lhs = generate_rec(
-                    letter_count / 2,
-                    star_height,
-                    lookahead_count - lookahead_count / 2,
-                    call_number + 1,
-                    conf,
-                );
-            }
+            let lhs = generate_rec(letter_count / 2, star_height, lookahead_count / 2, conf);
 
             let mut rhs = generate_rec(
                 letter_count - letter_count / 2,
                 star_height,
                 lookahead_count - lookahead_count / 2,
-                call_number + 1,
                 conf,
             );
 
@@ -133,19 +92,12 @@ fn generate_rec(
                     letter_count - letter_count / 2,
                     star_height,
                     lookahead_count - lookahead_count / 2,
-                    call_number + 1,
                     conf,
                 );
             }
 
             if lhs.is_empty() || rhs.is_empty() {
-                return generate_rec(
-                    letter_count,
-                    star_height,
-                    lookahead_count,
-                    call_number + 1,
-                    conf,
-                );
+                return generate_rec(letter_count, star_height, lookahead_count, conf);
             }
 
             return format!("({}|{})", lhs, rhs);
@@ -153,42 +105,24 @@ fn generate_rec(
 
         // star
         2 => {
-            if star_height == 0 || call_number == 0 {
-                return generate_rec(
-                    letter_count,
-                    star_height,
-                    lookahead_count,
-                    call_number,
-                    conf,
-                );
+            if star_height == 0 {
+                return generate_rec(letter_count, star_height, lookahead_count, conf);
             }
 
-            let regex = generate_rec(letter_count, star_height - 1, 0, call_number + 1, conf);
+            let regex = generate_rec(letter_count, star_height - 1, 0, conf);
             if regex.len() > 1 {
                 return format!("({})*", regex);
             } else if regex.len() == 1 {
                 return format!("{}*", regex);
             } else {
-                return generate_rec(
-                    letter_count,
-                    star_height,
-                    lookahead_count,
-                    call_number + 1,
-                    conf,
-                );
+                return generate_rec(letter_count, star_height, lookahead_count, conf);
             }
         }
 
         // lookahead
         3 => {
-            if lookahead_count == 0 || call_number == 0 {
-                return generate_rec(
-                    letter_count,
-                    star_height,
-                    lookahead_count,
-                    call_number,
-                    conf,
-                );
+            if lookahead_count == 0 {
+                return generate_rec(letter_count, star_height, lookahead_count, conf);
             }
 
             let regex = generate_lookahed(letter_count, conf.star_height, conf);
@@ -201,13 +135,7 @@ fn generate_rec(
             return format!(
                 "{}{}",
                 get_random_symbol(conf.alphabet_size.try_into().unwrap()),
-                generate_rec(
-                    letter_count - 1,
-                    star_height,
-                    lookahead_count,
-                    call_number + 1,
-                    conf
-                )
+                generate_rec(letter_count - 1, star_height, lookahead_count, conf)
             );
         }
     }
@@ -255,10 +183,8 @@ fn generate_lookahed(letter_count: usize, star_height: usize, conf: &mut Config)
 
             let r = generate_lookahed(letter_count, star_height - 1, conf);
 
-            if r.len() > 1 {
+            if r.len() >= 1 {
                 return format!("({})*", r);
-            } else if r.len() == 1 {
-                return format!("{}*", r);
             } else {
                 return generate_lookahed(letter_count, star_height, conf);
             }
