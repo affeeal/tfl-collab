@@ -1,6 +1,6 @@
-mod ast;
-mod automata;
-mod formalism;
+pub mod ast;
+pub mod automata;
+pub mod formalism;
 
 fn main() {
     let regex = "(ab|b)*a|a(a|b)b*";
