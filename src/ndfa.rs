@@ -139,7 +139,7 @@ impl Automata<char> {
         let mut transformed_transitions = vec![HashMap::<char, Vec<usize>>::new(); self.size];
     
         for (i, transition_row) in self.transition_matrix.iter().enumerate() {
-            for (j, letter_opt) in transition_row[1..].iter().enumerate() {
+            for (j, letter_opt) in transition_row.iter().enumerate() {
                 if letter_opt.is_none() {
                     continue;
                 }
@@ -334,13 +334,14 @@ pub fn concatenation(a1: &Automata, a2: &Automata) -> Automata {
 
 // Intersection
 
-#[derive(Eq, Hash, PartialEq, Clone)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
 struct State {
     a1_index: usize,
     letter: char,
     a2_index: usize,
 }
 
+#[derive(Debug)]
 struct Details {
     index: usize,
     is_finite: bool,
@@ -357,24 +358,25 @@ const TEMPORARY_INDEX: usize = 0;
 
 pub fn intersection(a1: &Automata, a2: &Automata) -> Automata {
     let mut state_details_map = HashMap::<State, Details>::new();
+    state_details_map.insert(
+        START_STATE,
+        Details {
+            index: START_INDEX,
+            is_finite: a1.is_finite_state(START_INDEX) && a2.is_finite_state(START_INDEX),
+            incoming_states: Vec::<State>::new(),
+        },
+    );
 
     bfs(a1, a2, &mut state_details_map);
     remove_traps(&mut state_details_map);
 
     let mut size = 1;
-    for details in state_details_map.values_mut() {
-        details.index = size;
-        size += 1;
+    for (state, details) in state_details_map.iter_mut() {
+        if state != &START_STATE {
+            details.index = size;
+            size += 1;
+        }
     }
-
-    state_details_map.insert(
-        START_STATE,
-        Details {
-            index: START_INDEX,
-            is_finite: a1.finite_states[START_INDEX] && a2.finite_states[START_INDEX],
-            incoming_states: Vec::<State>::new(),
-        },
-    );
 
     let mut start_states = vec![false; size];
     start_states[START_INDEX] = true;
@@ -410,7 +412,7 @@ fn bfs(a1: &Automata, a2: &Automata, state_details_map: &mut HashMap<State, Deta
     states_deq.push_back(START_STATE);
 
     while let Some(state) = states_deq.pop_front() {
-        let a1_transition_row = &a1.transition_matrix[state.a1_index][1..];
+        let a1_transition_row = &a1.transition_matrix[state.a1_index];
         for (a1_index, letter_opt) in a1_transition_row.iter().enumerate() {
             if letter_opt.is_none() {
                 continue;
