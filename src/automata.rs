@@ -5,10 +5,9 @@ use std::collections::VecDeque;
 use crate::ast::UnionExpr;
 use crate::formalism;
 
-#[derive(Debug)]
-pub struct Glushkov {
+pub struct NDFA<T> {
     start_states: Vec<bool>,
-    transition_matrix: Vec<Vec<Option<char>>>,
+    transition_matrix: Vec<Vec<Option<T>>>,
     finite_states: Vec<bool>,
     size: usize,
 }
@@ -26,26 +25,55 @@ struct Details {
     incoming_states: Vec<State>,
 }
 
-impl Glushkov {
-    const START_LETTER: char = 'ε';
-    const START_INDEX: usize = 0;
-    const START_STATE: State = State {
-        a1_index: Self::START_INDEX,
-        letter: Self::START_LETTER,
-        a2_index: Self::START_INDEX,
-    };
+const EPSILON: char = 'ε';
 
-    const TEMPORARY_INDEX: usize = 0;
+const START_INDEX: usize = 0;
+const FINITE_INDEX: usize = 1;
 
+impl<T> NDFA<T> {
+    fn is_start_state(&self, i: usize) -> bool {
+        return self.start_states[i];
+    }
+
+    fn is_finite_state(&self, i: usize) -> bool {
+        return self.finite_states[i];
+    }
+
+    fn get_outcoming_states(&self, i: usize) -> Vec<usize> {
+        let mut outcoming_states = Vec::<usize>::new();
+
+        for j in 0..self.size {
+            if self.transition_matrix[i][j].is_some() && j != i {
+                outcoming_states.push(j);
+            }
+        }
+
+        outcoming_states
+    }
+
+    fn get_incoming_states(&self, i: usize) -> Vec<usize> {
+        let mut incoming_states = Vec::<usize>::new();
+
+        for j in 0..self.size {
+            if self.transition_matrix[j][i].is_some() && j != i {
+                incoming_states.push(j);
+            }
+        }
+
+        incoming_states
+    }
+}
+
+impl NDFA<char> {
     pub fn new(linearized_symbols: &usize, ast_root: &UnionExpr) -> Self {
         let size = linearized_symbols + 1;
 
         let mut start_states = vec![false; size];
-        start_states[Self::START_INDEX] = true;
+        start_states[START_INDEX] = true;
 
         let mut transition_matrix = vec![vec![None; size]; size];
         for s in formalism::get_first_set(ast_root) {
-            transition_matrix[Self::START_INDEX][s.index] = Some(s.letter);
+            transition_matrix[START_INDEX][s.index] = Some(s.letter);
         }
         for (s1, s2) in formalism::get_follow_set(ast_root) {
             transition_matrix[s1.index][s2.index] = Some(s2.letter);
@@ -55,7 +83,7 @@ impl Glushkov {
         for s in formalism::get_last_set(ast_root) {
             finite_states[s.index] = true;
         }
-        // TODO: finite_states[Self::START_INDEX]
+        // TODO: finite_states[START_INDEX]
 
         Self {
             start_states,
@@ -69,17 +97,15 @@ impl Glushkov {
         let size = a1.size + a2.size - 1;
 
         let mut start_states = vec![false; size];
-        start_states[Self::START_INDEX] = true;
+        start_states[START_INDEX] = true;
 
         let mut transition_matrix = vec![vec![None; size]; size];
         let mut iter = transition_matrix.iter_mut();
 
         {
             let start_transitions = iter.next().unwrap();
-            start_transitions[1..a1.size]
-                .clone_from_slice(&a1.transition_matrix[Self::START_INDEX][1..]);
-            start_transitions[a1.size..]
-                .clone_from_slice(&a2.transition_matrix[Self::START_INDEX][1..]);
+            start_transitions[1..a1.size].clone_from_slice(&a1.transition_matrix[START_INDEX][1..]);
+            start_transitions[a1.size..].clone_from_slice(&a2.transition_matrix[START_INDEX][1..]);
         }
 
         for i in 1..a1.size {
@@ -93,8 +119,7 @@ impl Glushkov {
         }
 
         let mut finite_states = vec![false; size];
-        finite_states[Self::START_INDEX] =
-            a1.finite_states[Self::START_INDEX] || a2.finite_states[Self::START_INDEX];
+        finite_states[START_INDEX] = a1.finite_states[START_INDEX] || a2.finite_states[START_INDEX];
         finite_states[1..a1.size].clone_from_slice(&a1.finite_states[1..]);
         finite_states[a1.size..].clone_from_slice(&a2.finite_states[1..]);
 
@@ -111,7 +136,7 @@ impl Glushkov {
         let size = a1.size + a2.size - 1;
 
         let mut start_states = vec![false; size];
-        start_states[Self::START_INDEX] = true;
+        start_states[START_INDEX] = true;
 
         let mut transition_matrix = vec![vec![None; size]; size];
         let mut iter = transition_matrix.iter_mut();
@@ -120,8 +145,7 @@ impl Glushkov {
             let transitions = iter.next().unwrap();
             transitions[1..a1.size].clone_from_slice(&a1.transition_matrix[i][1..]);
             if a1.finite_states[i] {
-                transitions[a1.size..]
-                    .clone_from_slice(&a2.transition_matrix[Self::START_INDEX][1..]);
+                transitions[a1.size..].clone_from_slice(&a2.transition_matrix[START_INDEX][1..]);
             }
         }
 
@@ -131,7 +155,7 @@ impl Glushkov {
         }
 
         let mut finite_states = vec![false; size];
-        if a2.finite_states[Self::START_INDEX] {
+        if a2.finite_states[START_INDEX] {
             finite_states[..a1.size].clone_from_slice(a1.finite_states.as_slice());
         }
         finite_states[a1.size..].clone_from_slice(&a2.finite_states[1..]);
@@ -143,6 +167,14 @@ impl Glushkov {
             size,
         }
     }
+
+    const START_STATE: State = State {
+        a1_index: START_INDEX,
+        letter: EPSILON,
+        a2_index: START_INDEX,
+    };
+
+    const TEMPORARY_INDEX: usize = 0;
 
     pub fn intersection(a1: &Self, a2: &Self) -> Self {
         let mut state_details_map = HashMap::<State, Details>::new();
@@ -159,15 +191,14 @@ impl Glushkov {
         state_details_map.insert(
             Self::START_STATE,
             Details {
-                index: Self::START_INDEX,
-                is_finite: a1.finite_states[Self::START_INDEX]
-                        && a2.finite_states[Self::START_INDEX],
+                index: START_INDEX,
+                is_finite: a1.finite_states[START_INDEX] && a2.finite_states[START_INDEX],
                 incoming_states: Vec::<State>::new(),
             },
         );
 
         let mut start_states = vec![false; size];
-        start_states[Self::START_INDEX] = true;
+        start_states[START_INDEX] = true;
 
         let mut transition_matrix = vec![vec![None; size]; size];
         for (state, details) in &state_details_map {
@@ -223,7 +254,7 @@ impl Glushkov {
                                 Details {
                                     index: Self::TEMPORARY_INDEX,
                                     is_finite: a1.finite_states[a1_index]
-                                            && a2.finite_states[a2_index],
+                                        && a2.finite_states[a2_index],
                                     incoming_states: vec![state.clone()],
                                 },
                             );
@@ -278,5 +309,137 @@ impl Glushkov {
         }
 
         state_details_map.retain(|state, _details| visited_states_set.contains(state));
+    }
+
+    pub fn to_regex(&self) -> Option<String> {
+        let mut ndfa = self.prepare_for_state_elimination();
+
+        loop {
+            let mut current = START_INDEX;
+            while current < ndfa.size
+                && (ndfa.is_start_state(current) || ndfa.is_finite_state(current))
+            {
+                current += 1;
+            }
+
+            if current == ndfa.size {
+                break ndfa.transition_matrix[START_INDEX][FINITE_INDEX].take();
+            }
+
+            for incoming in ndfa.get_incoming_states(current) {
+                for outcoming in ndfa.get_outcoming_states(current) {
+                    ndfa.eliminate_transition(incoming, current, outcoming);
+                }
+            }
+
+            ndfa.eliminate_state(current);
+        }
+    }
+
+    fn prepare_for_state_elimination(&self) -> NDFA<String> {
+        let size = self.size + 1;
+
+        let mut start_states = vec![false; size];
+        start_states[START_INDEX] = true;
+
+        let mut transition_matrix = vec![vec![None; size]; size];
+        for (i, row) in self.transition_matrix.iter().enumerate() {
+            for (j, letter_opt) in row.iter().enumerate() {
+                if let Some(letter) = letter_opt {
+                    transition_matrix[i][j] = Some(letter.to_string());
+                }
+            }
+
+            if self.is_finite_state(i) {
+                transition_matrix[i][size - 1] = Some(EPSILON.to_string());
+            }
+        }
+
+        let mut finite_states = vec![false; size];
+        finite_states[size - 1] = true;
+
+        NDFA::<String> {
+            start_states,
+            transition_matrix,
+            finite_states,
+            size,
+        }
+    }
+}
+
+impl NDFA<String> {
+    fn eliminate_transition(&mut self, incoming: usize, current: usize, outcoming: usize) {
+        let former_regex_opt = &self.transition_matrix[incoming][outcoming];
+        let incoming_regex = self.transition_matrix[incoming][current].as_ref().unwrap();
+        let cyclic_regex_opt = &self.transition_matrix[current][current];
+        let outcoming_regex = self.transition_matrix[current][outcoming].as_ref().unwrap();
+
+        // Euristics
+
+        if Self::is_unfold_applicable(
+            former_regex_opt,
+            incoming_regex,
+            cyclic_regex_opt,
+            outcoming_regex,
+        ) {
+            self.transition_matrix[incoming][outcoming] = Some(format!("{incoming_regex}*"));
+            return;
+        }
+
+        // Common scenario
+
+        let mut result = String::new();
+
+        if let Some(former_regex) = former_regex_opt {
+            if *former_regex != EPSILON.to_string() {
+                result.push_str(former_regex);
+                result.push('|');
+            }
+        }
+
+        result.push_str(incoming_regex);
+
+        if let Some(cyclic_regex) = cyclic_regex_opt {
+            result.push_str(cyclic_regex);
+            result.push('*');
+        }
+
+        if *outcoming_regex != EPSILON.to_string() {
+            result.push_str(outcoming_regex);
+        }
+
+        self.transition_matrix[incoming][outcoming] = Some(Self::wrap_regex(result));
+    }
+
+    fn eliminate_state(&mut self, i: usize) {
+        self.start_states.swap_remove(i);
+
+        self.transition_matrix.swap_remove(i);
+        for transition_row in &mut self.transition_matrix {
+            transition_row.swap_remove(i);
+        }
+
+        self.finite_states.swap_remove(i);
+
+        self.size -= 1;
+    }
+
+    fn is_unfold_applicable(
+        former_regex_opt: &Option<String>,
+        incoming_regex: &String,
+        cyclic_regex_opt: &Option<String>,
+        outcoming_regex: &String,
+    ) -> bool {
+        *former_regex_opt == Some(EPSILON.to_string())
+            && Some(incoming_regex.clone()) == *cyclic_regex_opt
+            && *outcoming_regex == EPSILON.to_string()
+    }
+
+    fn wrap_regex(regex: String) -> String {
+        if regex.len() == 1 {
+            return regex;
+        }
+
+        format!("({regex})")
     }
 }
