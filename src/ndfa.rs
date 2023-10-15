@@ -357,7 +357,7 @@ const TEMPORARY_INDEX: usize = 0;
 pub fn intersection(a1: &Automata, a2: &Automata) -> Automata {
     let mut state_details_map = HashMap::<State, Details>::new();
 
-    dfs(a1, a2, &mut state_details_map);
+    bfs(a1, a2, &mut state_details_map);
     remove_traps(&mut state_details_map);
 
     let mut size = 1;
@@ -402,7 +402,7 @@ pub fn intersection(a1: &Automata, a2: &Automata) -> Automata {
     }
 }
 
-fn dfs(a1: &Automata, a2: &Automata, state_details_map: &mut HashMap<State, Details>) {
+fn bfs(a1: &Automata, a2: &Automata, state_details_map: &mut HashMap<State, Details>) {
     let a2_transitions = a2.transform_transitions();
 
     let mut states_deq = VecDeque::<State>::new();
