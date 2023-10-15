@@ -3,6 +3,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
+#[derive(Debug)]
 pub struct Tree {
     pub root: Union,
     pub linearized_symbols: usize
@@ -18,25 +19,29 @@ pub struct Tree {
  * <Atomic> ::= CHAR | '$' | '.' | '(' <Union> ')'
 */
 
+#[derive(Debug)]
 pub struct Union {
     pub concats: Vec<Concat>,
 }
 
+#[derive(Debug)]
 pub struct Concat {
     pub basics: Vec<Basic>,
 }
 
+#[derive(Debug)]
 pub struct Basic {
     pub atomic: Atomic,
     pub is_iter: bool,
 }
 
+#[derive(Debug)]
 pub enum Atomic {
     LinearizedSymbol(LinearizedSymbol),
     Union(Union),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct LinearizedSymbol {
     pub letter: char,
     pub index: usize,

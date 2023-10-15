@@ -1,12 +1,13 @@
 // non-deterministic finite automata (ndfa)
 
-mod ast;
-mod ffl;
+pub mod ast;
+pub mod ffl;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 
+#[derive(Debug)]
 pub struct Automata<T = char> {
     start_states: Vec<bool>,
     transition_matrix: Vec<Vec<Option<T>>>,

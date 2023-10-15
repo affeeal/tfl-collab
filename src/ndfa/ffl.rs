@@ -125,15 +125,23 @@ fn get_follow_of_union(union: &Union) -> Vec<(LinearizedSymbol, LinearizedSymbol
 fn get_follow_of_concat(concat: &Concat) -> Vec<(LinearizedSymbol, LinearizedSymbol)> {
     let mut follow_set = Vec::new();
 
-    for basic in &concat.basics {
+    let basics = &concat.basics;
+
+    for basic in basics {
         follow_set.extend(get_follow_of_basic(basic));
     }
 
-    for i in 0..concat.basics.len() - 1 {
-        follow_set.extend(get_cartesian_product(
-            &get_last_of_basic(&concat.basics[i]),
-            &get_first_of_basic(&concat.basics[i + 1]),
-        ));
+    for i in 0..basics.len() - 1 {
+        for j in (i + 1)..basics.len() {
+            follow_set.extend(get_cartesian_product(
+                &get_last_of_basic(&basics[i]),
+                &get_first_of_basic(&basics[j]),
+            ));
+
+            if !basics[j].is_iter {
+                break;
+            }
+        }
     }
 
     follow_set
