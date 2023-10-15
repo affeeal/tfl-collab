@@ -171,24 +171,26 @@ impl Automata<String> {
             cyclic_regex_opt,
             outcoming_regex,
         ) {
-            self.transition_matrix[incoming][outcoming] = Some(format!("{incoming_regex}*"));
+            self.transition_matrix[incoming][outcoming] = Some(format!("{}*", Self::wrap_if_needed(incoming_regex.clone())));
             return;
         }
 
         // Common scenario
         let mut result = String::new();
 
+        let mut should_be_wrapped = false;
         if let Some(former_regex) = former_regex_opt {
-            if *former_regex != EPSILON.to_string() {
-                result.push_str(former_regex);
-                result.push('|');
-            }
+            should_be_wrapped = true;
+            result.push('(');
+            result.push_str(former_regex);
+            result.push('|');
         }
 
         result.push_str(incoming_regex);
 
         if let Some(cyclic_regex) = cyclic_regex_opt {
-            result.push_str(cyclic_regex);
+            // or ignore epsilon?..
+            result.push_str(&Self::wrap_if_needed(cyclic_regex.clone()));
             result.push('*');
         }
 
@@ -196,7 +198,11 @@ impl Automata<String> {
             result.push_str(outcoming_regex);
         }
 
-        self.transition_matrix[incoming][outcoming] = Some(Self::wrap_regex(result));
+        if should_be_wrapped {
+            result.push(')');
+        }
+
+        self.transition_matrix[incoming][outcoming] = Some(result);
     }
 
     fn eliminate_state(&mut self, i: usize) {
@@ -223,9 +229,9 @@ impl Automata<String> {
             && *outcoming_regex == EPSILON.to_string()
     }
 
-    fn wrap_regex(regex: String) -> String {
-        if regex.len() == 1 {
-            return regex;
+    fn wrap_if_needed(regex: String) -> String {
+        if regex.len() == 1 || regex.chars().next().unwrap() == '(' {
+            return regex; // already wrapped
         }
 
         format!("({regex})")
