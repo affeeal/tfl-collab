@@ -16,6 +16,7 @@ pub struct Automata<T = char> {
 
 const START_INDEX: usize = 0;
 const EPSILON: char = 'ε';
+const ARBITARY: char = '.';
 
 impl<T> Automata<T> {
     fn is_start_state(&self, i: usize) -> bool {
@@ -414,8 +415,18 @@ fn dfs(a1: &Automata, a2: &Automata, state_details_map: &mut HashMap<State, Deta
                 continue;
             }
 
-            let letter = letter_opt.unwrap();
+            let mut outcoming_indices = Vec::<(&char, &Vec<usize>)>::new();
+
+            let letter = &letter_opt.unwrap();
             if let Some(a2_indices) = a2_transitions[state.a2_index].get(&letter) {
+                outcoming_indices.push((letter, a2_indices));
+            } else if letter == &ARBITARY {
+                for (letter, a2_indices) in &a2_transitions[state.a2_index] {
+                    outcoming_indices.push((letter, a2_indices));
+                }
+            }
+
+            for (&letter, a2_indices) in outcoming_indices {
                 for &a2_index in a2_indices {
                     let outcoming_state = State {
                         a1_index,
@@ -435,7 +446,7 @@ fn dfs(a1: &Automata, a2: &Automata, state_details_map: &mut HashMap<State, Deta
                                 incoming_states: vec![state.clone()],
                             },
                         );
-
+                    
                         states_deq.push_back(outcoming_state);
                     }
                 }

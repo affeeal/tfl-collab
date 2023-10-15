@@ -15,7 +15,7 @@ pub struct Tree {
  *
  * <Basic> ::= <Atomic> ('*')?
  *
- * <Atomic> ::= CHAR | '$' | '(' <Union> ')'
+ * <Atomic> ::= CHAR | '$' | '.' | '(' <Union> ')'
 */
 
 pub struct Union {
@@ -99,7 +99,7 @@ fn parse_concat(stream: &mut Peekable<Chars<'_>>) -> Concat {
 }
 
 fn is_atomic_start(ch: &char) -> bool {
-    ch.is_alphabetic() || ch == &'$' || ch == &'('
+    ch.is_alphabetic() || ch == &'$' || ch == &'.' || ch == &'('
 }
 
 // <Basic> ::= <Atomic> ('*')?
@@ -117,7 +117,7 @@ fn parse_basic(stream: &mut Peekable<Chars<'_>>) -> Basic {
     basic
 }
 
-// <Atomic> ::= <CHAR> | '$' | '(' <Union> ')'
+// <Atomic> ::= <CHAR> | '$' | '.' | '(' <Union> ')'
 fn parse_atomic(stream: &mut Peekable<Chars<'_>>) -> Atomic {
     let letter = stream.next().unwrap();
 
