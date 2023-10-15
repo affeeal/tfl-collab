@@ -160,3 +160,33 @@ fn get_follow_of_atomic(atomic_exp: &Atomic) -> Vec<(LinearizedSymbol, Linearize
         Atomic::Union(union) => get_follow_of_union(union),
     }
 }
+
+pub fn does_epsilon_satisfies(tree: &Tree) -> bool {
+    does_epsilon_satisfies_union(&tree.root)
+}
+
+fn does_epsilon_satisfies_union(union: &Union) -> bool {
+    for concat in &union.concats {
+        if does_epsilon_satisfies_concat(&concat) {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn does_epsilon_satisfies_concat(concat: &Concat) -> bool {
+    does_epsilon_satisfies_basic(&concat.basics.first().unwrap())
+}
+
+fn does_epsilon_satisfies_basic(basic: &Basic) -> bool {
+    basic.is_iter || does_epsilon_satisfies_atomic(&basic.atomic)
+}
+
+fn does_epsilon_satisfies_atomic(atomic: &Atomic) -> bool {
+    match atomic {
+        Atomic::LinearizedSymbol(_linearized_symbol) => false,
+        Atomic::Union(union) => does_epsilon_satisfies_union(union),
+    }
+}
+
