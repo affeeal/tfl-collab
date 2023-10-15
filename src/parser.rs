@@ -8,9 +8,37 @@ pub enum Token {
     SymbolSeq(String),
     LookaheadGroup(Vec<Token>),
     Lookahead(String),
+    LookaheadEnd,
     StringEnd,
     OpenBracket,
     CloseBracket,
+}
+
+impl Token {
+    pub fn to_string(&self) -> String {
+        match self {
+            Token::Binary(s) => s.to_string(),
+            Token::Unary(s) => s.to_string(),
+            Token::SymbolSeq(s) => s.to_string(),
+            Token::LookaheadGroup(l) => {
+                let mut r = "".to_string();
+                l.iter().for_each(|t| {
+                    r += &t.to_string();
+                });
+
+                // if l.len() > 0 && !matches!(l.last(), Some(Token::StringEnd)) {
+                //     r += ".*";
+                // }
+
+                format!("(?={})", r)
+            }
+            Token::LookaheadEnd => ".*".to_string(),
+            Token::Lookahead(_) => "".to_string(),
+            Token::StringEnd => "$".to_string(),
+            Token::OpenBracket => "(".to_string(),
+            Token::CloseBracket => ")".to_string(),
+        }
+    }
 }
 
 // Errors
@@ -150,7 +178,7 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
 
 fn simplify_brackets(mut tokens: Vec<Token>) -> Vec<Token> {
     let mut l = 1;
-    let mut r = tokens.len() - 1;
+    let mut r = tokens.len() - 2;
 
     while l < r
         && matches!(tokens[l], Token::OpenBracket)
@@ -317,6 +345,10 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
 
     if !lookahead.is_empty() {
         tokens.push(Token::SymbolSeq(lookahead));
+    }
+
+    if !matches!(tokens.last(), Some(Token::StringEnd)) {
+        tokens.push(Token::LookaheadEnd);
     }
 
     Ok(tokens)
@@ -499,7 +531,11 @@ mod tests {
         assert!(res.is_ok_and(|tokens| {
             tokens.len() == 2
                 && matches!(tokens[0], Token::SymbolSeq(..))
-				&& matches!(&tokens[1], Token::LookaheadGroup(group) if group.len() == 1 && matches!(&group[0], Token::SymbolSeq(l) if l == "abc"))
+                && matches!(&tokens[1], Token::LookaheadGroup(group) if group.len() == 2
+                && matches!(&group[0], Token::SymbolSeq(l) if l == "abc")
+                && matches!(&group[1], Token::LookaheadEnd)
+
+                )
         }));
 
         let regex = "^a(?=abc$)$";
@@ -511,7 +547,9 @@ mod tests {
         let l = parse(regex).unwrap();
 
         assert!(
-            matches!(&l[1], Token::LookaheadGroup(group) if group.len() == 2 && matches!(&group[0], Token::SymbolSeq(..)) && matches!(&group[1], Token::StringEnd))
+            matches!(&l[1], Token::LookaheadGroup(group) if group.len() == 2 
+					 && matches!(&group[0], Token::SymbolSeq(..))
+					 && matches!(&group[1], Token::StringEnd))
         );
     }
 
@@ -522,6 +560,25 @@ mod tests {
 
         let regex = "^a(?=abc)*abc$";
         assert!(parse(regex).is_err());
+    }
+
+    #[test]
+    fn brackets_simplification() {
+        let regex = "^a((ab*c))$";
+
+        let res = parse(regex);
+
+        assert!(res.is_ok());
+
+        let tokens = res.unwrap();
+
+        assert_eq!(tokens.len(), 6);
+        assert!(matches!(tokens[0], Token::SymbolSeq(..)));
+        assert!(matches!(tokens[1], Token::OpenBracket));
+        assert!(matches!(tokens[2], Token::SymbolSeq(..)));
+        assert!(matches!(tokens[3], Token::Unary(..)));
+        assert!(matches!(tokens[4], Token::SymbolSeq(..)));
+        assert!(matches!(tokens[5], Token::CloseBracket));
     }
 
     #[test]
