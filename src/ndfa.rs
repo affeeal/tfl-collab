@@ -9,10 +9,10 @@ use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub struct Automata<T = char> {
-    start_states: Vec<bool>,
-    transition_matrix: Vec<Vec<Option<T>>>,
-    finite_states: Vec<bool>,
-    size: usize,
+    pub start_states: Vec<bool>,
+    pub transition_matrix: Vec<Vec<Option<T>>>,
+    pub finite_states: Vec<bool>,
+    pub size: usize,
 }
 
 const START_INDEX: usize = 0;
@@ -20,11 +20,11 @@ const EPSILON: char = 'ε';
 const ARBITARY: char = '.';
 
 impl<T> Automata<T> {
-    fn is_start_state(&self, i: usize) -> bool {
+    pub fn is_start_state(&self, i: usize) -> bool {
         return self.start_states[i];
     }
 
-    fn is_finite_state(&self, i: usize) -> bool {
+    pub fn is_finite_state(&self, i: usize) -> bool {
         return self.finite_states[i];
     }
 }
