@@ -169,13 +169,13 @@ fn get_follow_of_atomic(atomic_exp: &Atomic) -> Vec<(LinearizedSymbol, Linearize
     }
 }
 
-pub fn does_epsilon_satisfies(tree: &Tree) -> bool {
-    does_epsilon_satisfies_union(&tree.root)
+pub fn does_epsilon_satisfy(tree: &Tree) -> bool {
+    does_epsilon_satisfy_union(&tree.root)
 }
 
-fn does_epsilon_satisfies_union(union: &Union) -> bool {
+fn does_epsilon_satisfy_union(union: &Union) -> bool {
     for concat in &union.concats {
-        if does_epsilon_satisfies_concat(&concat) {
+        if does_epsilon_satisfy_concat(&concat) {
             return true;
         }
     }
@@ -183,18 +183,24 @@ fn does_epsilon_satisfies_union(union: &Union) -> bool {
     false
 }
 
-fn does_epsilon_satisfies_concat(concat: &Concat) -> bool {
-    does_epsilon_satisfies_basic(&concat.basics.first().unwrap())
+fn does_epsilon_satisfy_concat(concat: &Concat) -> bool {
+    for basic in &concat.basics {
+        if !does_epsilon_satisfy_basic(basic) {
+            return false;
+        }
+    }
+
+    true
 }
 
-fn does_epsilon_satisfies_basic(basic: &Basic) -> bool {
-    basic.is_iter || does_epsilon_satisfies_atomic(&basic.atomic)
+fn does_epsilon_satisfy_basic(basic: &Basic) -> bool {
+    basic.is_iter || does_epsilon_satisfy_atomic(&basic.atomic)
 }
 
-fn does_epsilon_satisfies_atomic(atomic: &Atomic) -> bool {
+fn does_epsilon_satisfy_atomic(atomic: &Atomic) -> bool {
     match atomic {
         Atomic::LinearizedSymbol(_linearized_symbol) => false,
-        Atomic::Union(union) => does_epsilon_satisfies_union(union),
+        Atomic::Union(union) => does_epsilon_satisfy_union(union),
     }
 }
 

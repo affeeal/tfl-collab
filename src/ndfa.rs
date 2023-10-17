@@ -53,7 +53,7 @@ impl Automata<char> {
         }
 
         let mut finite_states = vec![false; size];
-        finite_states[START_INDEX] = ffl::does_epsilon_satisfies(&tree);
+        finite_states[START_INDEX] = ffl::does_epsilon_satisfy(&tree);
         for s in ffl::get_last_set(&tree) {
             finite_states[s.index] = true;
         }

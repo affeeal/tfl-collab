@@ -31,5 +31,9 @@ pub fn generate_str(a: &Automata, count: usize) -> Vec<String> {
 }
 
 fn mutate(s: String) -> String {
+    if rand::random() {
+        return s; // is not mutated
+    } 
+
     unimplemented!()
 }
