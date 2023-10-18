@@ -27,6 +27,13 @@ impl<T> Automata<T> {
     pub fn is_finite_state(&self, i: usize) -> bool {
         return self.finite_states[i];
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.size == 1
+            && self.is_start_state(START_INDEX)
+            && self.transition_matrix[START_INDEX][START_INDEX].is_none()
+            && !self.is_finite_state(START_INDEX)
+    }
 }
 
 impl Automata<char> {
@@ -34,7 +41,7 @@ impl Automata<char> {
 
     pub fn from_regex(regex: &String) -> Self {
         if regex.is_empty() {
-            return Self::epsilon_automata();
+            return Self::new_epsilon();
         }
 
         let tree = ast::Tree::from_regex(regex);
@@ -66,7 +73,7 @@ impl Automata<char> {
         }
     }
 
-    fn epsilon_automata() -> Self {
+    fn new_epsilon() -> Self {
         let size = 1;
         let start_states = vec![true; size];
         let transition_matrix = vec![vec![None; size]; size];
@@ -76,7 +83,21 @@ impl Automata<char> {
             start_states,
             transition_matrix,
             finite_states,
-            size
+            size,
+        }
+    }
+
+    fn new_empty() -> Self {
+        let size = 1;
+        let start_states = vec![true; size];
+        let transition_matrix = vec![vec![None; size]; size];
+        let finite_states = vec![false; size];
+
+        Self {
+            start_states,
+            transition_matrix,
+            finite_states,
+            size,
         }
     }
 
@@ -137,13 +158,13 @@ impl Automata<char> {
 
     fn transform_transitions(&self) -> Vec<HashMap<char, Vec<usize>>> {
         let mut transformed_transitions = vec![HashMap::<char, Vec<usize>>::new(); self.size];
-    
+
         for (i, transition_row) in self.transition_matrix.iter().enumerate() {
             for (j, letter_opt) in transition_row.iter().enumerate() {
                 if letter_opt.is_none() {
                     continue;
                 }
-    
+
                 let letter = letter_opt.unwrap();
                 if let Some(indices) = transformed_transitions[i].get_mut(&letter) {
                     indices.push(j);
@@ -152,7 +173,7 @@ impl Automata<char> {
                 }
             }
         }
-    
+
         transformed_transitions
     }
 }
@@ -164,14 +185,15 @@ impl Automata<String> {
         let cyclic_regex_opt = &self.transition_matrix[current][current];
         let outcoming_regex = self.transition_matrix[current][outcoming].as_ref().unwrap();
 
-        // Euristics
+        // Optimisations
         if Self::is_unfold_applicable(
             former_regex_opt,
             incoming_regex,
             cyclic_regex_opt,
             outcoming_regex,
         ) {
-            self.transition_matrix[incoming][outcoming] = Some(format!("{}*", Self::wrap_if_needed(incoming_regex.clone())));
+            self.transition_matrix[incoming][outcoming] =
+                Some(format!("{}*", Self::wrap_if_needed(incoming_regex.clone())));
             return;
         }
 
@@ -189,7 +211,6 @@ impl Automata<String> {
         result.push_str(incoming_regex);
 
         if let Some(cyclic_regex) = cyclic_regex_opt {
-            // or ignore epsilon?..
             result.push_str(&Self::wrap_if_needed(cyclic_regex.clone()));
             result.push('*');
         }
@@ -231,7 +252,7 @@ impl Automata<String> {
 
     fn wrap_if_needed(regex: String) -> String {
         if regex.len() == 1 || regex.chars().next().unwrap() == '(' {
-            return regex; // already wrapped
+            return regex;
         }
 
         format!("({regex})")
@@ -303,6 +324,10 @@ pub fn union(a1: &Automata, a2: &Automata) -> Automata {
 }
 
 pub fn concatenation(a1: &Automata, a2: &Automata) -> Automata {
+    if a1.is_empty() || a2.is_empty() {
+        return Automata::new_empty();
+    }
+
     let size = a1.size + a2.size - 1;
 
     let mut start_states = vec![false; size];
@@ -450,12 +475,11 @@ fn bfs(a1: &Automata, a2: &Automata, state_details_map: &mut HashMap<State, Deta
                             outcoming_state.clone(),
                             Details {
                                 index: TEMPORARY_INDEX,
-                                is_finite: a1.finite_states[a1_index]
-                                    && a2.finite_states[a2_index],
+                                is_finite: a1.finite_states[a1_index] && a2.finite_states[a2_index],
                                 incoming_states: vec![state.clone()],
                             },
                         );
-                    
+
                         states_deq.push_back(outcoming_state);
                     }
                 }
@@ -486,4 +510,3 @@ fn remove_traps(state_details_map: &mut HashMap<State, Details>) {
 
     state_details_map.retain(|state, _details| visited_states_set.contains(state));
 }
-

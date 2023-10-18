@@ -6,7 +6,7 @@ use std::str::Chars;
 #[derive(Debug)]
 pub struct Tree {
     pub root: Union,
-    pub linearized_symbols: usize
+    pub linearized_symbols: usize,
 }
 
 /*
@@ -67,7 +67,7 @@ impl Tree {
 
         Self {
             root,
-            linearized_symbols
+            linearized_symbols,
         }
     }
 }

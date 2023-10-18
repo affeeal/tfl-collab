@@ -1,11 +1,11 @@
 // first-, follow-, last-elements (ffl)
 
+use crate::ndfa::ast::Atomic;
+use crate::ndfa::ast::Basic;
+use crate::ndfa::ast::Concat;
+use crate::ndfa::ast::LinearizedSymbol;
 use crate::ndfa::ast::Tree;
 use crate::ndfa::ast::Union;
-use crate::ndfa::ast::Concat;
-use crate::ndfa::ast::Basic;
-use crate::ndfa::ast::Atomic;
-use crate::ndfa::ast::LinearizedSymbol;
 
 // First-set
 
@@ -203,4 +203,3 @@ fn does_epsilon_satisfy_atomic(atomic: &Atomic) -> bool {
         Atomic::Union(union) => does_epsilon_satisfy_union(union),
     }
 }
-
