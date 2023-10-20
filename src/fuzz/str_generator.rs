@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::collections::VecDeque;
 
+use ndarray::Array2;
 use rand::rngs::ThreadRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
@@ -9,52 +10,55 @@ use crate::ndfa;
 
 pub struct StringGenerator<'a> {
     automata: &'a ndfa::Automata,
+    reachability: Reachability,
     rng: ThreadRng,
 }
 
 impl<'a> StringGenerator<'a> {
     const FINITE_STATE_PROBABILITY: f64 = 0.15;
-    const COMPLETE_WORD_PROBABILITY: f64 = 0.30;
+    const COMPLETE_WORD_PROBABILITY: f64 = 0.3;
 
     const EPSILON_CHAIN: [usize; 2] = [ndfa::START_INDEX; 2];
 
     pub fn from_automata(automata: &'a ndfa::Automata) -> Self {
         Self {
             automata,
+            reachability: dbg!(Reachability::from_automata(automata)),
             rng: rand::thread_rng(),
         }
     }
 
-    pub fn gen_strs(&mut self/*, count: &usize*/) /* -> Vec<String> */ {
-        let reach_arr = self.automata.get_reach_arr();
-        let reach_vec = transform_reach_arr(reach_arr);
+    pub fn gen_strs(&mut self, _count: &usize) -> Vec<String> {
+        // TODO: handle count
 
-        let _states_chain = dbg!(self.gen_states_chain(&reach_vec));
-        let _words_chain = dbg!(self.gen_words_chain(&_states_chain));
-
-        // TODO
-    }
-
-    fn gen_states_chain(&mut self, reach_vec: &Vec<Vec<usize>>) -> Vec<usize> {
         // Empty automata corner case
         if self.automata.is_empty() {
             return Vec::new();
         }
 
+        let states_chain = dbg!(self.gen_states_chain());
+        let words_chain = dbg!(self.gen_words_chain(&states_chain));
+
+        unimplemented!()
+    }
+
+    fn gen_states_chain(&mut self) -> Vec<usize> {
         let mut states = Vec::<usize>::new();
         states.push(ndfa::START_INDEX);
 
         let mut current_state = ndfa::START_INDEX;
         loop {
             // Nothing to visit or can exit
-            if reach_vec[current_state].is_empty()
+            if self.reachability.as_outcoming[current_state].is_empty()
                 || self.automata.is_finite_state(current_state)
                     && self.rng.gen_bool(Self::FINITE_STATE_PROBABILITY)
             {
                 break;
             }
 
-            let next_state = reach_vec[current_state].choose(&mut self.rng).unwrap();
+            let next_state = self.reachability.as_outcoming[current_state]
+                .choose(&mut self.rng)
+                .unwrap();
             states.push(next_state.clone());
             current_state = next_state.clone();
         }
@@ -92,71 +96,95 @@ impl<'a> StringGenerator<'a> {
         states_deq.push_back((String::new(), from.clone()));
 
         while let Some((word_prefix, state)) = states_deq.pop_front() {
-            if state.eq(to)
-                && self.rng.gen_bool(Self::COMPLETE_WORD_PROBABILITY)
-                && !word_prefix.is_empty()
+            let mut outcoming = Vec::<(String, usize)>::new();
+            for (i, letter_opt) in self.automata.transition_matrix[state].iter().enumerate() {
+                if !self.reachability.as_incoming[*to].contains(&i) && to.ne(&i) {
+                    continue;
+                }
+
+                if let Some(letter) = letter_opt {
+                    outcoming.push((word_prefix.clone() + &letter.to_string(), i));
+                }
+            }
+
+            if outcoming.is_empty() // not sure...
+                || state.eq(to)
+                    && self.rng.gen_bool(Self::COMPLETE_WORD_PROBABILITY)
+                    && !word_prefix.is_empty()
             {
                 return word_prefix;
             }
 
-            for (i, letter_opt) in self.automata.transition_matrix[state].iter().enumerate() {
-                if let Some(letter) = letter_opt {
-                    states_deq.push_back((word_prefix.clone() + &letter.to_string(), i));
-                }
-            }
+            states_deq.extend(outcoming);
         }
 
         unreachable!()
     }
 }
 
-impl ndfa::Automata {
-    fn _get_alphabet(&self) -> HashSet<char> {
-        let mut alphabet = HashSet::<char>::new();
+#[derive(Debug)]
+struct Reachability {
+    matrix: Array2<usize>,
+    as_outcoming: Vec<Vec<usize>>,
+    as_incoming: Vec<HashSet<usize>>,
+}
 
-        for row in &self.transition_matrix {
-            for letter_opt in row {
-                if let Some(letter) = letter_opt {
-                    alphabet.insert(letter.clone());
-                }
-            }
+impl Reachability {
+    pub fn from_automata(a: &ndfa::Automata) -> Self {
+        let matrix = Self::get_matrix(a);
+        let as_outcoming = Self::get_outcoming(&matrix);
+        let as_incoming = Self::get_incoming(&as_outcoming);
+
+        Self {
+            matrix,
+            as_outcoming,
+            as_incoming,
         }
-
-        alphabet
     }
 
-    fn get_reach_arr(&self) -> ndarray::Array2<i32> {
-        let mut adj_vec = vec![0; self.size * self.size];
-        for (i, row) in self.transition_matrix.iter().enumerate() {
+    fn get_matrix(a: &ndfa::Automata) -> Array2<usize> {
+        let mut adjacency_vec = vec![0; a.size * a.size];
+        for (i, row) in a.transition_matrix.iter().enumerate() {
             for (j, letter_opt) in row.iter().enumerate() {
                 if letter_opt.is_some() {
-                    adj_vec[i * self.size + j] = 1;
+                    adjacency_vec[i * a.size + j] = 1;
                 }
             }
         }
 
-        let adj_arr = ndarray::Array2::from_shape_vec((self.size, self.size), adj_vec).unwrap();
+        let adjacency_matrix = Array2::from_shape_vec((a.size, a.size), adjacency_vec).unwrap();
 
-        let mut reach_arr = adj_arr.clone();
-        let mut comp_arr = adj_arr.clone();
-        for _ in 0..self.size - 1 {
-            comp_arr = comp_arr.dot(&adj_arr);
-            reach_arr += &comp_arr;
+        let mut reachability_matrix = adjacency_matrix.clone();
+        let mut composition_matrix = adjacency_matrix.clone();
+        for _ in 0..a.size - 1 {
+            composition_matrix = composition_matrix.dot(&adjacency_matrix);
+            reachability_matrix += &composition_matrix;
         }
 
-        reach_arr
+        reachability_matrix
     }
-}
 
-fn transform_reach_arr(reach_arr: ndarray::Array2<i32>) -> Vec<Vec<usize>> {
-    let mut reach_vec = vec![Vec::<usize>::new(); reach_arr.dim().0];
+    fn get_outcoming(matrix: &Array2<usize>) -> Vec<Vec<usize>> {
+        let mut outcoming = vec![Vec::<usize>::new(); matrix.dim().0];
 
-    for ((i, j), paths) in reach_arr.indexed_iter() {
-        if paths.gt(&0) {
-            reach_vec[i].push(j);
+        for ((i, j), paths_count) in matrix.indexed_iter() {
+            if paths_count.gt(&0) {
+                outcoming[i].push(j);
+            }
         }
+
+        outcoming
     }
 
-    reach_vec
-}
+    fn get_incoming(outcoming: &Vec<Vec<usize>>) -> Vec<HashSet<usize>> {
+        let mut incoming = vec![HashSet::<usize>::new(); outcoming.len()];
 
+        for (i, row) in outcoming.iter().enumerate() {
+            for j in row.iter() {
+                incoming[*j].insert(i);
+            }
+        }
+
+        incoming
+    }
+}

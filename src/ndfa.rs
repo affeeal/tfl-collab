@@ -176,6 +176,20 @@ impl Automata<char> {
 
         transformed_transitions
     }
+
+    fn get_alphabet(&self) -> HashSet<char> {
+        let mut alphabet = HashSet::<char>::new();
+
+        for row in &self.transition_matrix {
+            for letter_opt in row {
+                if let Some(letter) = letter_opt {
+                    alphabet.insert(letter.clone());
+                }
+            }
+        }
+
+        alphabet
+    }
 }
 
 impl Automata<String> {
