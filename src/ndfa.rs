@@ -15,7 +15,7 @@ pub struct Automata<T = char> {
     pub size: usize,
 }
 
-const START_INDEX: usize = 0;
+pub const START_INDEX: usize = 0;
 const EPSILON: char = 'ε';
 const ARBITARY: char = '.';
 
@@ -73,7 +73,7 @@ impl Automata<char> {
         }
     }
 
-    fn new_epsilon() -> Self {
+    pub fn new_epsilon() -> Self {
         let size = 1;
         let start_states = vec![true; size];
         let transition_matrix = vec![vec![None; size]; size];
@@ -87,7 +87,7 @@ impl Automata<char> {
         }
     }
 
-    fn new_empty() -> Self {
+    pub fn new_empty() -> Self {
         let size = 1;
         let start_states = vec![true; size];
         let transition_matrix = vec![vec![None; size]; size];
