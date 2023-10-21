@@ -177,20 +177,6 @@ impl Automata<char> {
 
         transformed_transitions
     }
-
-    fn get_alphabet(&self) -> HashSet<char> {
-        let mut alphabet = HashSet::<char>::new();
-
-        for row in &self.transition_matrix {
-            for letter_opt in row {
-                if let Some(letter) = letter_opt {
-                    alphabet.insert(letter.clone());
-                }
-            }
-        }
-
-        alphabet
-    }
 }
 
 impl Automata<String> {
@@ -208,23 +194,21 @@ impl Automata<String> {
             outcoming_regex,
         ) {
             self.transition_matrix[incoming][outcoming] =
-                Some(format!("{}*", Self::wrap_if_needed(incoming_regex)));
+                Some(format!("{}*", Self::wrap(incoming_regex)));
             return;
         }
 
-        // TODO: idempotency, distributivity
+        // TODO? idempotency, distributivity
 
         // Common scenario
         let mut result = String::new();
 
-        let mut must_be_wrapped = false;
         let mut can_be_epsilon = false;
 
         if let Some(former_regex) = former_regex_opt {
             if former_regex.eq(&EPSILON) {
                 can_be_epsilon = true;
             } else {
-                must_be_wrapped = true;
                 result.push_str(former_regex);
                 result.push('|');
             }
@@ -233,7 +217,7 @@ impl Automata<String> {
         result.push_str(incoming_regex);
 
         if let Some(cyclic_regex) = cyclic_regex_opt {
-            result.push_str(&Self::wrap_if_needed(cyclic_regex));
+            result.push_str(&Self::wrap(cyclic_regex));
             result.push('*');
         }
 
@@ -241,12 +225,9 @@ impl Automata<String> {
             result.push_str(outcoming_regex);
         }
 
-        if must_be_wrapped {
-            result = Self::wrap(&result);
-        }
+        result = Self::wrap(&result);
 
         if can_be_epsilon {
-            result = Self::wrap_if_needed(&result);
             result.push('?');
         }
 
@@ -275,14 +256,6 @@ impl Automata<String> {
         *former_regex_opt == Some(EPSILON)
             && Some(incoming_regex.clone()) == *cyclic_regex_opt
             && *outcoming_regex == EPSILON
-    }
-
-    fn wrap_if_needed(regex: &String) -> String {
-        if regex.len() == 1 || regex.chars().next().unwrap() == '(' {
-            return regex.clone();
-        }
-
-        Self::wrap(regex)
     }
 
     fn wrap(regex: &String) -> String {

@@ -138,7 +138,7 @@ fn get_follow_of_concat(concat: &Concat) -> Vec<(LinearizedSymbol, LinearizedSym
                 &get_first_of_basic(&basics[j]),
             ));
 
-            if !basics[j].is_iter {
+            if !does_epsilon_satisfy_basic(&basics[j]) {
                 break;
             }
         }

@@ -44,7 +44,8 @@ impl<'a> StringGenerator<'a> {
             let states = self.gen_states_chain();
             let mut words = self.gen_words_chain(&states);
 
-            self.mutate(&mut words);
+            // TODO: fix mutation
+            // self.mutate(&mut words);
 
             strings.push(self.join_words(&words));
         }
@@ -247,19 +248,19 @@ impl<'a> StringGenerator<'a> {
 
 #[derive(Debug)]
 struct Reachability {
-    matrix: Array2<usize>,
+    _matrix: Array2<usize>,
     as_outcoming: Vec<Vec<usize>>,
     as_incoming: Vec<HashSet<usize>>,
 }
 
 impl Reachability {
     pub fn from_automata(a: &ndfa::Automata) -> Self {
-        let matrix = Self::get_matrix(a);
-        let as_outcoming = Self::get_outcoming(&matrix);
+        let _matrix = Self::get_matrix(a);
+        let as_outcoming = Self::get_outcoming(&_matrix);
         let as_incoming = Self::get_incoming(&as_outcoming);
 
         Self {
-            matrix,
+            _matrix,
             as_outcoming,
             as_incoming,
         }
