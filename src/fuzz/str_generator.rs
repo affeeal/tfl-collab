@@ -17,6 +17,7 @@ pub struct StringGenerator<'a> {
 impl<'a> StringGenerator<'a> {
     const FINITE_STATE_PROBABILITY: f64 = 0.15;
     const COMPLETE_WORD_PROBABILITY: f64 = 0.3;
+    const MUTATION_PROBABILITY: f64 = 0.6;
 
     const EPSILON_CHAIN: [usize; 2] = [ndfa::START_INDEX; 2];
 
@@ -28,18 +29,24 @@ impl<'a> StringGenerator<'a> {
         }
     }
 
-    pub fn gen_strs(&mut self, _count: &usize) -> Vec<String> {
-        // TODO: handle count
-
+    pub fn gen_strings(&mut self, count: &usize) -> Vec<String> {
         // Empty automata corner case
         if self.automata.is_empty() {
             return Vec::new();
         }
 
-        let states_chain = dbg!(self.gen_states_chain());
-        let words_chain = dbg!(self.gen_words_chain(&states_chain));
+        let mut strings = Vec::<String>::new();
 
-        unimplemented!()
+        for _ in 0..*count {
+            let states = dbg!(self.gen_states_chain());
+            let mut words = dbg!(self.gen_words_chain(&states));
+
+            self.mutate(&mut words);
+
+            strings.push(self.join_words(&words));
+        }
+
+        strings
     }
 
     fn gen_states_chain(&mut self) -> Vec<usize> {
@@ -119,6 +126,14 @@ impl<'a> StringGenerator<'a> {
         }
 
         unreachable!()
+    }
+
+    fn mutate(&mut self, words: &mut Vec<String>) {
+        unimplemented!()
+    }
+
+    fn join_words(&self, words: &Vec<String>) -> String {
+        unimplemented!()
     }
 }
 
