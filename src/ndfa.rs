@@ -114,7 +114,10 @@ impl Automata<char> {
             }
 
             if current == ndfa.size {
-                break ndfa.transition_matrix[START_INDEX][Self::FINITE_INDEX].take();
+                break match ndfa.transition_matrix[START_INDEX][Self::FINITE_INDEX].take() {
+                    Some(regex) => Some(format!("^{regex}$")),
+                    None => None,
+                };
             }
 
             for incoming in ndfa.get_incoming_states(current) {

@@ -44,8 +44,7 @@ impl<'a> StringGenerator<'a> {
             let states = self.gen_states_chain();
             let mut words = self.gen_words_chain(&states);
 
-            // TODO: fix mutation
-            // self.mutate(&mut words);
+            self.mutate(&mut words);
 
             strings.push(self.join_words(&words));
         }
@@ -118,9 +117,10 @@ impl<'a> StringGenerator<'a> {
                 }
             }
 
-            if outcoming.is_empty() || state.eq(to)
-                && self.rng.gen_bool(Self::COMPLETE_WORD_PROBABILITY)
-                && !word_prefix.is_empty()
+            if outcoming.is_empty()
+                || state.eq(to)
+                    && self.rng.gen_bool(Self::COMPLETE_WORD_PROBABILITY)
+                    && !word_prefix.is_empty()
             {
                 return word_prefix;
             }

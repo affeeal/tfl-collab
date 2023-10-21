@@ -29,7 +29,7 @@ fn get_first_of_concat(concat: &Concat) -> Vec<LinearizedSymbol> {
     for basic in &concat.basics {
         first_set.extend(get_first_of_basic(basic));
 
-        if !basic.is_iter {
+        if !does_epsilon_satisfy_basic(basic) {
             break;
         }
     }
@@ -70,7 +70,7 @@ fn get_last_of_concat(concat: &Concat) -> Vec<LinearizedSymbol> {
     for basic in concat.basics.iter().rev() {
         last_set.extend(get_last_of_basic(basic));
 
-        if !basic.is_iter {
+        if !does_epsilon_satisfy_basic(basic) {
             break;
         }
     }
@@ -168,6 +168,8 @@ fn get_follow_of_atomic(atomic_exp: &Atomic) -> Vec<(LinearizedSymbol, Linearize
         Atomic::Union(union) => get_follow_of_union(union),
     }
 }
+
+// Epsilon satisfiability
 
 pub fn does_epsilon_satisfy(tree: &Tree) -> bool {
     does_epsilon_satisfy_union(&tree.root)
