@@ -68,4 +68,4 @@ jobs:
           override: true
           profile: minimal
           toolchain: stable
-      - run: make fuzzy
+      - run: make fuzzy rc=100 sc=10
