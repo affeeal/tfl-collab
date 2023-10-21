@@ -31,31 +31,62 @@ impl RegexGenerator {
     pub fn generate(&self, rcount: usize) -> Vec<String> {
         let mut result = vec![];
 
+        let mut rng = rand::thread_rng();
         for _ in 0..rcount {
-            let mut regex = self.generate_rec(
-                self.config.max_letter_count,
-                self.config.star_height,
-                self.config.max_lookahead_count,
-            );
+            let mut regex;
+            let b = rng.gen_bool(0.65);
 
-            loop {
-                let c = self.get_letters_count(&regex);
-                let k = self.get_lookahead_count(&regex);
+            if b || self.config.max_lookahead_count < 2 || self.config.max_letter_count < 6 {
+                regex = self.generate_rec(
+                    self.config.max_letter_count,
+                    self.config.star_height,
+                    self.config.max_lookahead_count,
+                );
+                loop {
+                    let c = self.get_letters_count(&regex);
+                    let k = self.get_lookahead_count(&regex);
 
-                if c == self.config.max_letter_count {
-                    break;
+                    if c == self.config.max_letter_count {
+                        break;
+                    }
+
+                    regex = format!(
+                        "{}{}",
+                        regex,
+                        self.generate_rec(
+                            self.config.max_letter_count - c,
+                            self.config.star_height,
+                            self.config.max_lookahead_count - k,
+                        )
+                    );
+                }
+            } else {
+                let first = self.generate_rec(
+                    self.config.max_letter_count / 2,
+                    self.config.star_height,
+                    self.config.max_lookahead_count / 2,
+                );
+
+                // rhs = alternative with lookahead
+                let mut second = "".to_string();
+                let mut third = "".to_string();
+                while !second.contains("(?=") && !third.contains("(?=") {
+                    second = self.generate_rec(
+                        self.config.max_letter_count / 4,
+                        self.config.star_height,
+                        self.config.max_lookahead_count / 2 - self.config.max_lookahead_count / 4,
+                    );
+
+                    third = self.generate_rec(
+                        self.config.max_letter_count / 4,
+                        self.config.star_height,
+                        self.config.max_lookahead_count / 4,
+                    );
                 }
 
-                regex = format!(
-                    "{}{}",
-                    regex,
-                    self.generate_rec(
-                        self.config.max_letter_count - c,
-                        self.config.star_height,
-                        self.config.max_lookahead_count - k,
-                    )
-                );
+                regex = format!("{}({}|{})", first, second, third);
             }
+
             result.push(format!("^{}$", regex));
         }
 

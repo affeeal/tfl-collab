@@ -59,6 +59,7 @@ jobs:
           command: clippy
   fuzzy:
     name: Fuzzy testing
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -67,4 +68,4 @@ jobs:
           override: true
           profile: minimal
           toolchain: stable
-      - run: make fuzzy
+      - run: make fuzzy rc=100 sc=10
