@@ -1,10 +1,11 @@
+use fuzz::runner;
+
+pub mod convertor;
 pub mod fuzz;
 pub mod ndfa;
+pub mod parser;
 
 fn main() {
-    let r1 = "(ab)*|ba";
-
-    let a1 = dbg!(ndfa::Automata::from_regex(&r1.to_string()));
-    let mut generator = fuzz::str_generator::StringGenerator::from_automata(&a1);
-    generator.gen_strings(&5);
+    env_logger::init();
+    runner::run_tests(50, 5);
 }

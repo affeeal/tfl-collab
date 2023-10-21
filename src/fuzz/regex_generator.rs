@@ -28,15 +28,34 @@ impl RegexGenerator {
         }
     }
 
-    pub fn generate(&self, rcount: i32) -> Vec<String> {
+    pub fn generate(&self, rcount: usize) -> Vec<String> {
         let mut result = vec![];
 
         for _ in 0..rcount {
-            let regex = self.generate_rec(
+            let mut regex = self.generate_rec(
                 self.config.max_letter_count,
                 self.config.star_height,
                 self.config.max_lookahead_count,
             );
+
+            loop {
+                let c = self.get_letters_count(&regex);
+                let k = self.get_lookahead_count(&regex);
+
+                if c == self.config.max_letter_count {
+                    break;
+                }
+
+                regex = format!(
+                    "{}{}",
+                    regex,
+                    self.generate_rec(
+                        self.config.max_letter_count - c,
+                        self.config.star_height,
+                        self.config.max_lookahead_count - k,
+                    )
+                );
+            }
             result.push(format!("^{}$", regex));
         }
 
@@ -46,11 +65,11 @@ impl RegexGenerator {
     fn get_random_symbol(&self) -> String {
         let mut rng = rand::thread_rng();
         let r = rng.gen_range(0..self.config.alphabet_size);
-        return ('a'..='z')
+        ('a'..='z')
             .into_iter()
             .nth(r.try_into().unwrap())
             .unwrap()
-            .to_string();
+            .to_string()
     }
 
     fn generate_rec(
@@ -92,12 +111,8 @@ impl RegexGenerator {
                 let mut rhs = "".to_string();
 
                 while lhs.is_empty() || rhs.is_empty() || lhs.eq(&rhs) {
-                    lhs = self.generate_rec(letter_count / 2, star_height, lookahead_count / 2);
-                    rhs = self.generate_rec(
-                        letter_count - letter_count / 2,
-                        star_height,
-                        lookahead_count - lookahead_count / 2,
-                    );
+                    lhs = self.generate_rec(letter_count / 2, star_height, 0);
+                    rhs = self.generate_rec(letter_count - letter_count / 2, star_height, 0);
                 }
 
                 return format!("({}|{})", lhs, rhs);
@@ -117,59 +132,71 @@ impl RegexGenerator {
                 }
             }
 
+            // symbol
+            3 => self.get_random_symbol(),
+
             // lookahead
-            3 => {
+            _ => {
                 if lookahead_count == 0 {
                     return self.generate_rec(letter_count, star_height, lookahead_count);
                 }
 
-                let regex = self.generate_lookahead(letter_count, self.config.star_height);
+                let regex = self.generate_lookahead(letter_count);
 
                 return format!("(?={})", regex);
-            }
-
-            // symbol
-            _ => {
-                return format!(
-                    "{}{}",
-                    self.get_random_symbol(),
-                    self.generate_rec(letter_count - 1, star_height, lookahead_count)
-                );
             }
         }
     }
 
     // <lookahead> ::= <lookahead><binary><lookahead> | (<lookahead>) | <lookahead><unary> | <symbol> | ε
 
-    fn generate_lookahead(&self, letter_count: usize, star_height: usize) -> String {
+    fn generate_lookahead(&self, letter_count: usize) -> String {
+        let mut r = "".to_string();
+
+        loop {
+            let k = self.get_letters_count(&r);
+
+            if k == letter_count {
+                return r;
+            }
+
+            r = format!(
+                "{}{}",
+                r,
+                self.generate_lookahead_rec(letter_count - k, self.config.star_height)
+            );
+        }
+    }
+
+    fn generate_lookahead_rec(&self, letter_count: usize, star_height: usize) -> String {
         if letter_count == 0 {
             return "".to_string();
         }
 
         let mut rng = rand::thread_rng();
 
-        let r = rng.gen_range(0..5);
+        let r = rng.gen_range(0..4);
 
         match r {
             // concat
             0 => {
-                let lhs = self.generate_lookahead(letter_count / 2, star_height);
-                let rhs = self.generate_lookahead(letter_count - letter_count / 2, star_height);
+                let lhs = self.generate_lookahead_rec(letter_count / 2, star_height);
+                let rhs = self.generate_lookahead_rec(letter_count - letter_count / 2, star_height);
                 return format!("{}{}", lhs, rhs);
             }
 
             // or
             1 => {
                 if letter_count < 2 {
-                    return self.generate_lookahead(letter_count, star_height);
+                    return self.generate_lookahead_rec(letter_count, star_height);
                 }
 
                 let mut lhs = "".to_string();
                 let mut rhs = "".to_string();
 
                 while lhs.is_empty() || rhs.is_empty() || lhs.eq(&rhs) {
-                    lhs = self.generate_lookahead(letter_count / 2, star_height);
-                    rhs = self.generate_lookahead(letter_count - letter_count / 2, star_height);
+                    lhs = self.generate_lookahead_rec(letter_count / 2, star_height);
+                    rhs = self.generate_lookahead_rec(letter_count - letter_count / 2, star_height);
                 }
 
                 return format!("({}|{})", lhs, rhs);
@@ -178,26 +205,29 @@ impl RegexGenerator {
             // star
             2 => {
                 if star_height == 0 {
-                    return self.generate_lookahead(letter_count, star_height);
+                    return self.generate_lookahead_rec(letter_count, star_height);
                 }
 
-                let r = self.generate_lookahead(letter_count, star_height - 1);
+                let r = self.generate_lookahead_rec(letter_count, star_height - 1);
 
                 if r.len() >= 1 {
                     return format!("({})*", r);
                 } else {
-                    return self.generate_lookahead(letter_count, star_height);
+                    return self.generate_lookahead_rec(letter_count, star_height);
                 }
             }
 
             // symbol
-            _ => {
-                return format!(
-                    "{}{}",
-                    self.get_random_symbol(),
-                    self.generate_lookahead(letter_count - 1, star_height)
-                );
-            }
+            _ => self.get_random_symbol(),
         }
+    }
+
+    fn get_letters_count(&self, r: &str) -> usize {
+        r.chars()
+            .fold(0, |acc, c| if c.is_alphabetic() { acc + 1 } else { acc })
+    }
+
+    fn get_lookahead_count(&self, r: &str) -> usize {
+        r.matches("(?=").count()
     }
 }
