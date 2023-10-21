@@ -7,5 +7,5 @@ pub mod parser;
 
 fn main() {
     env_logger::init();
-    runner::run_tests(50, 5);
+    runner::run_tests(50, 10);
 }

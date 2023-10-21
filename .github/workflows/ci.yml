@@ -59,6 +59,7 @@ jobs:
           command: clippy
   fuzzy:
     name: Fuzzy testing
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
