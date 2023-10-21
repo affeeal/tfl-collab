@@ -1,7 +1,4 @@
-// non-deterministic finite automata (ndfa)
-
 pub mod ast;
-pub mod ffl;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -53,16 +50,16 @@ impl Automata<char> {
         start_states[START_INDEX] = true;
 
         let mut transition_matrix = vec![vec![None; size]; size];
-        for s in ffl::get_first_set(&tree) {
-            transition_matrix[START_INDEX][s.index] = Some(s.letter);
+        for s in tree.get_first_set() {
+            transition_matrix[START_INDEX][s.index] = Some(s.symbol);
         }
-        for (s1, s2) in ffl::get_follow_set(&tree) {
-            transition_matrix[s1.index][s2.index] = Some(s2.letter);
+        for (s1, s2) in tree.get_follow_set() {
+            transition_matrix[s1.index][s2.index] = Some(s2.symbol);
         }
 
         let mut finite_states = vec![false; size];
-        finite_states[START_INDEX] = ffl::does_epsilon_satisfy(&tree);
-        for s in ffl::get_last_set(&tree) {
+        finite_states[START_INDEX] = tree.does_epsilon_satisfy();
+        for s in tree.get_last_set() {
             finite_states[s.index] = true;
         }
 
@@ -138,9 +135,9 @@ impl Automata<char> {
 
         let mut transition_matrix = vec![vec![None; size]; size];
         for (i, row) in self.transition_matrix.iter().enumerate() {
-            for (j, letter_opt) in row.iter().enumerate() {
-                if let Some(letter) = letter_opt {
-                    transition_matrix[i][j] = Some(letter.to_string());
+            for (j, symbol_opt) in row.iter().enumerate() {
+                if let Some(symbol) = symbol_opt {
+                    transition_matrix[i][j] = Some(symbol.to_string());
                 }
             }
 
@@ -164,16 +161,16 @@ impl Automata<char> {
         let mut transformed_transitions = vec![HashMap::<char, Vec<usize>>::new(); self.size];
 
         for (i, transition_row) in self.transition_matrix.iter().enumerate() {
-            for (j, letter_opt) in transition_row.iter().enumerate() {
-                if letter_opt.is_none() {
+            for (j, symbol_opt) in transition_row.iter().enumerate() {
+                if symbol_opt.is_none() {
                     continue;
                 }
 
-                let letter = letter_opt.unwrap();
-                if let Some(indices) = transformed_transitions[i].get_mut(&letter) {
+                let symbol = symbol_opt.unwrap();
+                if let Some(indices) = transformed_transitions[i].get_mut(&symbol) {
                     indices.push(j);
                 } else {
-                    transformed_transitions[i].insert(letter, vec![j]);
+                    transformed_transitions[i].insert(symbol, vec![j]);
                 }
             }
         }
@@ -375,7 +372,7 @@ pub fn concatenation(a1: &Automata, a2: &Automata) -> Automata {
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 struct State {
     a1_index: usize,
-    letter: char,
+    symbol: char,
     a2_index: usize,
 }
 
@@ -388,7 +385,7 @@ struct Details {
 
 const START_STATE: State = State {
     a1_index: START_INDEX,
-    letter: '\0',
+    symbol: '\0',
     a2_index: START_INDEX,
 };
 
@@ -424,7 +421,7 @@ pub fn intersection(a1: &Automata, a2: &Automata) -> Automata {
         let j = details.index;
         for incoming_state in &details.incoming_states {
             let i = state_details_map[&incoming_state].index;
-            transition_matrix[i][j] = Some(state.letter);
+            transition_matrix[i][j] = Some(state.symbol);
         }
     }
 
@@ -451,27 +448,27 @@ fn bfs(a1: &Automata, a2: &Automata, state_details_map: &mut HashMap<State, Deta
 
     while let Some(state) = states_deq.pop_front() {
         let a1_transition_row = &a1.transition_matrix[state.a1_index];
-        for (a1_index, letter_opt) in a1_transition_row.iter().enumerate() {
-            if letter_opt.is_none() {
+        for (a1_index, symbol_opt) in a1_transition_row.iter().enumerate() {
+            if symbol_opt.is_none() {
                 continue;
             }
 
             let mut outcoming_indices = Vec::<(&char, &Vec<usize>)>::new();
 
-            let letter = &letter_opt.unwrap();
-            if let Some(a2_indices) = a2_transitions[state.a2_index].get(&letter) {
-                outcoming_indices.push((letter, a2_indices));
-            } else if letter == &ARBITARY {
-                for (letter, a2_indices) in &a2_transitions[state.a2_index] {
-                    outcoming_indices.push((letter, a2_indices));
+            let symbol = &symbol_opt.unwrap();
+            if let Some(a2_indices) = a2_transitions[state.a2_index].get(&symbol) {
+                outcoming_indices.push((symbol, a2_indices));
+            } else if symbol == &ARBITARY {
+                for (symbol, a2_indices) in &a2_transitions[state.a2_index] {
+                    outcoming_indices.push((symbol, a2_indices));
                 }
             }
 
-            for (&letter, a2_indices) in outcoming_indices {
+            for (&symbol, a2_indices) in outcoming_indices {
                 for &a2_index in a2_indices {
                     let outcoming_state = State {
                         a1_index,
-                        letter,
+                        symbol,
                         a2_index,
                     };
 

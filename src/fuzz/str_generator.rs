@@ -15,9 +15,9 @@ pub struct StringGenerator<'a> {
 }
 
 impl<'a> StringGenerator<'a> {
-    const FINITE_STATE_PROBABILITY: f64 = 0.2;
-    const COMPLETE_WORD_PROBABILITY: f64 = 0.4;
-    const MUTATION_PROBABILITY: f64 = 0.8;
+    const FINITE_STATE_PROBABILITY: f64 = 0.25;
+    const COMPLETE_WORD_PROBABILITY: f64 = 0.5;
+    const MUTATION_PROBABILITY: f64 = 0.75;
 
     const EPSILON_CHAIN: [usize; 2] = [ndfa::START_INDEX; 2];
     const EPSILON_WORDS: [String; 1] = [String::new(); 1];
