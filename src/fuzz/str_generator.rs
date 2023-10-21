@@ -129,11 +129,17 @@ impl<'a> StringGenerator<'a> {
     }
 
     fn mutate(&mut self, words: &mut Vec<String>) {
-        unimplemented!()
+        // TODO
     }
 
     fn join_words(&self, words: &Vec<String>) -> String {
-        unimplemented!()
+        let mut result = String::new();
+
+        for word in words.iter() {
+            result.push_str(word);
+        }
+
+        result
     }
 }
 
