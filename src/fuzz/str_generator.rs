@@ -19,7 +19,7 @@ impl<'a> StringGenerator<'a> {
     const COMPLETE_WORD_PROBABILITY: f64 = 0.5;
     const MUTATION_PROBABILITY: f64 = 0.75;
 
-    const EPSILON_CHAIN: [usize; 2] = [ndfa::START_INDEX; 2];
+    const EPSILON_CHAIN: [usize; 2] = [ndfa::START; 2];
     const EPSILON_WORDS: [String; 1] = [String::new(); 1];
 
     const MUTATIONS_COUNT: usize = 6;
@@ -54,9 +54,9 @@ impl<'a> StringGenerator<'a> {
 
     fn gen_states_chain(&mut self) -> Vec<usize> {
         let mut states = Vec::<usize>::new();
-        states.push(ndfa::START_INDEX);
+        states.push(ndfa::START);
 
-        let mut current_state = ndfa::START_INDEX;
+        let mut current_state = ndfa::START;
         loop {
             // Nothing to visit or can exit
             if self.reachability.as_outcoming[current_state].is_empty()
@@ -74,7 +74,7 @@ impl<'a> StringGenerator<'a> {
         }
 
         // Epsilon corner case
-        if current_state.eq(&ndfa::START_INDEX) {
+        if current_state.eq(&ndfa::START) {
             return Vec::from(Self::EPSILON_CHAIN);
         }
 
