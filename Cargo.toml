@@ -12,3 +12,4 @@ log = "0.4.20"
 rand = "0.8.5"
 regex = "1.10.0"
 ndarray = "0.15.6"
+clap = { version = "4.4.6", features = ["derive"] }

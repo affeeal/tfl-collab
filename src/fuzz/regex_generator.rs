@@ -85,9 +85,6 @@ impl RegexGenerator {
                 }
 
                 regex = format!("{}({}|{})", first, second, third);
-                println!("------------------");
-                println!("{}", regex);
-                println!("------------------");
             }
 
             result.push(format!("^{}$", regex));
