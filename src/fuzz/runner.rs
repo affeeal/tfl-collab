@@ -4,14 +4,7 @@ use super::regex_generator::{self, RegexGenerator};
 use fancy_regex::Regex;
 use log::{error, info};
 
-pub fn run_tests(regex_count: usize, strs_count: usize) {
-    let cfg = regex_generator::Config {
-        max_lookahead_count: 4,
-        star_height: 2,
-        alphabet_size: 4,
-        max_letter_count: 8,
-    };
-
+pub fn run_tests(regex_count: usize, strs_count: usize, cfg: &regex_generator::Config) {
     let generator = RegexGenerator::new(&cfg);
 
     let regexes = generator.generate(regex_count);
