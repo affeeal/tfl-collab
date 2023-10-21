@@ -16,7 +16,8 @@ pub struct Automata<T = char> {
 }
 
 pub const START_INDEX: usize = 0;
-const EPSILON: char = 'ε';
+
+const EPSILON: String = String::new();
 const ARBITARY: char = '.';
 
 impl<T> Automata<T> {
@@ -141,7 +142,7 @@ impl Automata<char> {
             }
 
             if self.is_finite_state(i) {
-                transition_matrix[i][size - 1] = Some(EPSILON.to_string());
+                transition_matrix[i][size - 1] = Some(EPSILON);
             }
         }
 
@@ -200,41 +201,53 @@ impl Automata<String> {
         let outcoming_regex = self.transition_matrix[current][outcoming].as_ref().unwrap();
 
         // Optimisations
-        if Self::is_unfold_applicable(
+        if Self::is_unfold_axiom_applicable(
             former_regex_opt,
             incoming_regex,
             cyclic_regex_opt,
             outcoming_regex,
         ) {
             self.transition_matrix[incoming][outcoming] =
-                Some(format!("{}*", Self::wrap_if_needed(incoming_regex.clone())));
+                Some(format!("{}*", Self::wrap_if_needed(incoming_regex)));
             return;
         }
+
+        // TODO: idempotency, distributivity
 
         // Common scenario
         let mut result = String::new();
 
-        let mut should_be_wrapped = false;
+        let mut must_be_wrapped = false;
+        let mut can_be_epsilon = false;
+
         if let Some(former_regex) = former_regex_opt {
-            should_be_wrapped = true;
-            result.push('(');
-            result.push_str(former_regex);
-            result.push('|');
+            if former_regex.eq(&EPSILON) {
+                can_be_epsilon = true;
+            } else {
+                must_be_wrapped = true;
+                result.push_str(former_regex);
+                result.push('|');
+            }
         }
 
         result.push_str(incoming_regex);
 
         if let Some(cyclic_regex) = cyclic_regex_opt {
-            result.push_str(&Self::wrap_if_needed(cyclic_regex.clone()));
+            result.push_str(&Self::wrap_if_needed(cyclic_regex));
             result.push('*');
         }
 
-        if *outcoming_regex != EPSILON.to_string() {
+        if outcoming_regex.ne(&EPSILON) {
             result.push_str(outcoming_regex);
         }
 
-        if should_be_wrapped {
-            result.push(')');
+        if must_be_wrapped {
+            result = Self::wrap(&result);
+        }
+
+        if can_be_epsilon {
+            result = Self::wrap_if_needed(&result);
+            result.push('?');
         }
 
         self.transition_matrix[incoming][outcoming] = Some(result);
@@ -253,22 +266,26 @@ impl Automata<String> {
         self.size -= 1;
     }
 
-    fn is_unfold_applicable(
+    fn is_unfold_axiom_applicable(
         former_regex_opt: &Option<String>,
         incoming_regex: &String,
         cyclic_regex_opt: &Option<String>,
         outcoming_regex: &String,
     ) -> bool {
-        *former_regex_opt == Some(EPSILON.to_string())
+        *former_regex_opt == Some(EPSILON)
             && Some(incoming_regex.clone()) == *cyclic_regex_opt
-            && *outcoming_regex == EPSILON.to_string()
+            && *outcoming_regex == EPSILON
     }
 
-    fn wrap_if_needed(regex: String) -> String {
+    fn wrap_if_needed(regex: &String) -> String {
         if regex.len() == 1 || regex.chars().next().unwrap() == '(' {
-            return regex;
+            return regex.clone();
         }
 
+        Self::wrap(regex)
+    }
+
+    fn wrap(regex: &String) -> String {
         format!("({regex})")
     }
 
@@ -395,7 +412,7 @@ struct Details {
 
 const START_STATE: State = State {
     a1_index: START_INDEX,
-    letter: EPSILON,
+    letter: '\0',
     a2_index: START_INDEX,
 };
 
