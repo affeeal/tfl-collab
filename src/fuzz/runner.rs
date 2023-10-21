@@ -22,7 +22,7 @@ pub fn run_tests(regex_count: usize, strs_count: usize) {
         let automata = crate::convertor::gen_rec(&r).unwrap();
         let mut str_gen = str_generator::StringGenerator::from_automata(&automata);
         info!("generating strings...");
-        let strs = str_gen.gen_strings(&strs_count);
+        let strs = str_gen.gen_strs(strs_count);
         info!("running tests...");
         let mut regex = "".to_string();
         automata

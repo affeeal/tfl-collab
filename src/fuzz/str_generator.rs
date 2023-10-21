@@ -32,7 +32,7 @@ impl<'a> StringGenerator<'a> {
         }
     }
 
-    pub fn gen_strings(&mut self, count: usize) -> Vec<String> {
+    pub fn gen_strs(&mut self, count: usize) -> Vec<String> {
         // Empty automata corner case
         if self.automata.is_empty() {
             return Vec::new();
