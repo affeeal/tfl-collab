@@ -24,9 +24,13 @@ pub fn gen_rec(r: &str) -> Result<Automata, String> {
             Token::CloseBracket => brackets_counter -= 1,
             Token::LookaheadGroup(group) => {
                 if brackets_counter == 0 {
-                    let mut tmp: String = group
-                        .iter()
-                        .fold("".to_string(), |acc, t| acc + &t.to_string());
+                    let mut tmp: String = group.iter().fold("".to_string(), |acc, t| {
+                        if !matches!(t, Token::StringEnd) {
+                            acc + &t.to_string()
+                        } else {
+                            acc
+                        }
+                    });
 
                     if !matches!(group.last(), Some(Token::StringEnd)) {
                         tmp += ".*";
@@ -46,9 +50,6 @@ pub fn gen_rec(r: &str) -> Result<Automata, String> {
                         &ndfa::intersection(&a2, &gen_rec(&r3)?),
                     ));
                 } else {
-                    // abc*bc(ab(?=ab$)aa)
-                    // abc*bc((ab)*ab(?=ab)(aab|abc))abc
-                    // abc*bc(ab(?=ab$)aa|abc)
                     let l = first_bracket_idx;
                     let mut r = l + 1;
                     brackets_counter = 1;

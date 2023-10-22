@@ -68,4 +68,4 @@ jobs:
           override: true
           profile: minimal
           toolchain: stable
-      - run: make fuzzy rc=100 sc=10
+      - run: RUST_LOG=info cargo run -- --lookahead-count 3 --star-height 3 --letter-count 7 --regex-count 100 --string-count 5

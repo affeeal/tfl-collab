@@ -18,6 +18,12 @@ pub fn run_tests_for_regex(r: &str, strs_count: usize) {
     info!("starting tests for regex {}...", r);
     info!("creating automata...");
     let automata = crate::convertor::gen_rec(&r).unwrap();
+    info!(
+        "generated regex: {}",
+        automata
+            .to_regex()
+            .unwrap_or_else(|| return "^$".to_string())
+    );
     let mut str_gen = str_generator::StringGenerator::from_automata(&automata);
     info!("generating strings...");
     let strs = str_gen.gen_strs(strs_count);
