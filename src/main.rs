@@ -36,39 +36,33 @@ fn main() {
         max_letter_count: 10,
     };
 
-    match cli.regex {
-        Some(expr) => regex = expr,
-        None => {}
+    if let Some(expr) = cli.regex {
+        regex = expr;
     }
 
-    match cli.regex_count {
-        Some(c) => regex_count = c,
-        None => {}
+    if let Some(c) = cli.regex_count {
+        regex_count = c;
     }
 
-    match cli.string_count {
-        Some(c) => string_count = c,
-        None => {}
+    if let Some(c) = cli.string_count {
+        string_count = c
     }
 
-    match cli.star_height {
-        Some(h) => cfg.star_height = h,
-        None => {}
+    if let Some(h) = cli.star_height {
+        cfg.star_height = h
     }
 
-    match cli.lookahead_count {
-        Some(c) => cfg.max_letter_count = c,
-        None => {}
+    if let Some(c) = cli.lookahead_count {
+        cfg.max_letter_count = c
     }
 
-    match cli.letter_count {
-        Some(c) => cfg.max_letter_count = c,
-        None => {}
+    if let Some(c) = cli.letter_count {
+        cfg.max_letter_count = c
     }
 
-    if !regex.is_empty() {
-        runner::run_tests_for_regex(&regex, string_count);
-    } else {
+    if regex.is_empty() {
         runner::run_tests(regex_count, string_count, &cfg);
+    } else {
+        runner::run_tests_for_regex(&regex, string_count);
     }
 }

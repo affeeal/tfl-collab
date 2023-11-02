@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::iter::Peekable;
 use std::str::Chars;
 use std::vec;
@@ -8,43 +9,56 @@ pub enum Token {
     Unary(String),
     SymbolSeq(String),
     LookaheadGroup(Vec<Token>),
-    Lookahead(String),
+    LookbehindGroup(Vec<Token>),
     LookaheadEnd,
     StringEnd,
     OpenBracket,
     CloseBracket,
 }
 
-impl Token {
-    pub fn to_string(&self) -> String {
+pub enum BracketsTokenType {
+    Lookahead,
+    Lookbehind,
+    SimpleSeq,
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Token::Binary(s) => s.to_string(),
-            Token::Unary(s) => s.to_string(),
-            Token::SymbolSeq(s) => s.to_string(),
             Token::LookaheadGroup(l) => {
                 let mut r = "".to_string();
                 l.iter().for_each(|t| {
                     r += &t.to_string();
                 });
 
-                format!("(?={})", r)
+                write!(f, "(?={})", r)
             }
-            Token::LookaheadEnd => "".to_string(),
-            Token::Lookahead(_) => "".to_string(),
-            Token::StringEnd => "$".to_string(),
-            Token::OpenBracket => "(".to_string(),
-            Token::CloseBracket => ")".to_string(),
+            Token::LookbehindGroup(l) => {
+                let mut r = "".to_string();
+                l.iter().for_each(|t| {
+                    r += &t.to_string();
+                });
+
+                write!(f, "(<={})", r)
+            }
+            Token::LookaheadEnd => write!(f, ""),
+            Token::StringEnd => write!(f, "$"),
+            Token::OpenBracket => write!(f, "("),
+            Token::CloseBracket => write!(f, ")"),
+            Token::Binary(s) => write!(f, "{}", s),
+            Token::Unary(s) => write!(f, "{}", s),
+            Token::SymbolSeq(s) => write!(f, "{}", s),
         }
     }
 }
 
 // Errors
-const ERR_INVALID_BEGIN: &str = "regex must be begin with '^'";
-const ERR_INVALID_END: &str = "regex must be end with '$'";
-const ERR_INVALID_BRACKETS_SEQUENCE: &str = "invalid brackets sequence";
-const ERR_INVALID_LOOKAHEAD: &str = "invalid lookahead operation";
-const ERR_INVALID_OPERATION: &str = "invalid operation";
-const ERR_EMPTY_BRACKETS: &str = "empty brackets";
+static ERR_INVALID_BEGIN: &str = "regex must be begin with '^'";
+static ERR_INVALID_END: &str = "regex must be end with '$'";
+static ERR_INVALID_BRACKETS_SEQUENCE: &str = "invalid brackets sequence";
+static ERR_INVALID_LOOKAHEAD: &str = "invalid lookahead operation";
+static ERR_INVALID_OPERATION: &str = "invalid operation";
+static ERR_EMPTY_BRACKETS: &str = "empty brackets";
 
 // <init> ::= ∧<regex>$
 
@@ -73,7 +87,7 @@ pub fn parse(r: &str) -> Result<Vec<Token>, String> {
     (?=<lookahead>$?) | ε
 */
 
-fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
+fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, &'static str> {
     let mut regex = "".to_string();
     let mut tokens: Vec<Token> = vec![];
 
@@ -86,17 +100,18 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                     regex = "".to_string();
                 }
 
-                let extracted = extract(stream)?;
+                let (token_type, extracted) = extract(stream)?;
 
-                match extracted {
-                    Token::Lookahead(s) => {
-                        let tmp = parse_lookahead(&mut s.chars().peekable())?;
+                match token_type {
+                    BracketsTokenType::Lookahead => {
+                        let tmp = parse_look_operator(&mut extracted.chars().peekable())?;
                         tokens.push(Token::LookaheadGroup(tmp));
                     }
-                    Token::SymbolSeq(s) => {
+
+                    BracketsTokenType::SimpleSeq => {
                         let mut tmp = vec![];
                         tmp.push(Token::OpenBracket);
-                        tmp.append(&mut parse_regex(&mut s.chars().peekable())?);
+                        tmp.append(&mut parse_regex(&mut extracted.chars().peekable())?);
                         tmp.push(Token::CloseBracket);
                         tmp = simplify_brackets(tmp);
                         if !matches!(tmp[0], Token::OpenBracket) {
@@ -113,7 +128,7 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
             }
 
             ')' => {
-                return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
+                return Err(ERR_INVALID_BRACKETS_SEQUENCE);
             }
 
             '|' => {
@@ -123,7 +138,7 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
 
                 // ^|a$ is invalid
                 if tokens.is_empty() {
-                    return Err(ERR_INVALID_OPERATION.to_string());
+                    return Err(ERR_INVALID_OPERATION);
                 }
 
                 tokens.push(Token::Binary("|".to_string()));
@@ -133,7 +148,7 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
 
                 // ^a|$ is invalid
                 if tmp.is_empty() {
-                    return Err(ERR_INVALID_OPERATION.to_string());
+                    return Err(ERR_INVALID_OPERATION);
                 }
 
                 tokens.append(&mut tmp);
@@ -147,7 +162,7 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                 }
 
                 if tokens.is_empty() {
-                    return Err(ERR_INVALID_OPERATION.to_string());
+                    return Err(ERR_INVALID_OPERATION);
                 }
 
                 // ()* is invalid
@@ -155,12 +170,12 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
                     && matches!(tokens[tokens.len() - 1], Token::CloseBracket)
                     && matches!(tokens[tokens.len() - 2], Token::OpenBracket)
                 {
-                    return Err(ERR_INVALID_OPERATION.to_string());
+                    return Err(ERR_INVALID_OPERATION);
                 }
 
                 // (?=...)* is invalid
                 if matches!(tokens.last(), Some(Token::LookaheadGroup(..))) {
-                    return Err(ERR_INVALID_OPERATION.to_string());
+                    return Err(ERR_INVALID_OPERATION);
                 }
 
                 tokens.push(Token::Unary("*".to_string()));
@@ -187,7 +202,7 @@ fn simplify_brackets(tokens: Vec<Token>) -> Vec<Token> {
     let mut pairs = vec![];
     let mut tmp = vec![];
 
-    for i in 0..tokens.len() {
+    for (i, _) in tokens.iter().enumerate() {
         match &tokens[i] {
             Token::OpenBracket => {
                 stack.push(i);
@@ -210,19 +225,17 @@ fn simplify_brackets(tokens: Vec<Token>) -> Vec<Token> {
         }
     }
 
-    let mut i = 0;
-    for t in tokens {
+    for (i, t) in tokens.into_iter().enumerate() {
         if !tmp.contains(&i) {
             result.push(t);
         }
-        i += 1;
     }
 
     result
 }
 
-fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<Token, String> {
-    let token_type: Token;
+fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<(BracketsTokenType, String), &'static str> {
+    let token_type: BracketsTokenType;
     let mut counter = 1;
     let mut extracted_value = "".to_string();
     stream.next();
@@ -230,18 +243,18 @@ fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<Token, String> {
     match stream.peek() {
         Some(t) => {
             if t == &'?' {
-                token_type = Token::Lookahead("".to_string());
+                token_type = BracketsTokenType::Lookahead;
                 stream.next();
             } else {
-                token_type = Token::SymbolSeq("".to_string());
+                token_type = BracketsTokenType::SimpleSeq;
             }
         }
-        None => return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string()),
+        None => return Err(ERR_INVALID_BRACKETS_SEQUENCE),
     };
 
-    if matches!(token_type, Token::Lookahead(..)) {
+    if matches!(token_type, BracketsTokenType::Lookahead) {
         if stream.peek() != Some(&'=') {
-            return Err(ERR_INVALID_LOOKAHEAD.to_string());
+            return Err(ERR_INVALID_LOOKAHEAD);
         }
         stream.next();
     }
@@ -257,19 +270,16 @@ fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<Token, String> {
     }
 
     if counter != 0 {
-        return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
+        return Err(ERR_INVALID_BRACKETS_SEQUENCE);
     };
 
     extracted_value.remove(extracted_value.len() - 1);
 
     if extracted_value.is_empty() {
-        return Err(ERR_EMPTY_BRACKETS.to_string());
+        return Err(ERR_EMPTY_BRACKETS);
     }
 
-    match token_type {
-        Token::SymbolSeq(_) => Ok(Token::SymbolSeq(extracted_value.to_string())),
-        _ => Ok(Token::Lookahead(extracted_value.to_string())),
-    }
+    Ok((token_type, extracted_value.to_string()))
 }
 
 /*
@@ -279,7 +289,7 @@ fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<Token, String> {
     <symbol> | ε
 */
 
-fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, String> {
+fn parse_look_operator(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, &'static str> {
     let mut tokens = vec![];
     let mut lookahead = "".to_string();
 
@@ -292,13 +302,13 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
                     lookahead = "".to_string();
                 }
 
-                let extracted = extract(stream)?;
+                let (token_type, extracted) = extract(stream)?;
 
-                match extracted {
-                    Token::SymbolSeq(s) => {
+                match token_type {
+                    BracketsTokenType::SimpleSeq => {
                         let mut tmp = vec![];
                         tmp.push(Token::OpenBracket);
-                        tmp.append(&mut parse_lookahead(&mut s.chars().peekable())?);
+                        tmp.append(&mut parse_look_operator(&mut extracted.chars().peekable())?);
                         tmp.push(Token::CloseBracket);
                         tmp = simplify_brackets(tmp);
                         if !matches!(tmp[0], Token::OpenBracket) {
@@ -310,7 +320,7 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
                         }
                     }
                     _ => {
-                        return Err(ERR_INVALID_LOOKAHEAD.to_string());
+                        return Err(ERR_INVALID_LOOKAHEAD);
                     }
                 };
 
@@ -323,15 +333,15 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
                 }
 
                 if tokens.is_empty() {
-                    return Err(ERR_INVALID_OPERATION.to_string());
+                    return Err(ERR_INVALID_OPERATION);
                 }
 
                 tokens.push(Token::Binary("|".to_string()));
                 stream.next();
-                let mut tmp = parse_lookahead(stream)?;
+                let mut tmp = parse_look_operator(stream)?;
 
                 if tmp.is_empty() {
-                    return Err(ERR_INVALID_OPERATION.to_string());
+                    return Err(ERR_INVALID_OPERATION);
                 }
 
                 tokens.append(&mut tmp);
@@ -340,14 +350,14 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
             }
 
             ')' => {
-                return Err(ERR_INVALID_BRACKETS_SEQUENCE.to_string());
+                return Err(ERR_INVALID_BRACKETS_SEQUENCE);
             }
 
             '$' => {
                 stream.next();
 
                 if stream.peek().is_some() {
-                    return Err(ERR_INVALID_LOOKAHEAD.to_string());
+                    return Err(ERR_INVALID_LOOKAHEAD);
                 }
 
                 if !lookahead.is_empty() {
@@ -365,7 +375,7 @@ fn parse_lookahead(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, Strin
                 }
 
                 if tokens.is_empty() {
-                    return Err(ERR_INVALID_OPERATION.to_string());
+                    return Err(ERR_INVALID_OPERATION);
                 }
 
                 tokens.push(Token::Unary("*".to_string()))

@@ -5,7 +5,7 @@ use crate::{
 
 pub fn gen_rec(r: &str) -> Result<Automata, String> {
     if r.eq("^$") {
-        return Ok(Automata::from_regex(&"".to_string()));
+        return Ok(Automata::from_regex(""));
     }
 
     let tokens = parse(r)?;

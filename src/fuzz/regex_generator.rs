@@ -96,11 +96,7 @@ impl RegexGenerator {
     fn get_random_symbol(&self) -> String {
         let mut rng = rand::thread_rng();
         let r = rng.gen_range(0..self.config.alphabet_size);
-        ('a'..='z')
-            .into_iter()
-            .nth(r.try_into().unwrap())
-            .unwrap()
-            .to_string()
+        ('a'..='z').nth(r.try_into().unwrap()).unwrap().to_string()
     }
 
     fn generate_rec(
@@ -128,7 +124,7 @@ impl RegexGenerator {
                     lookahead_count - lookahead_count / 2,
                 );
 
-                return format!("{}{}", lhs, rhs);
+                format!("{}{}", lhs, rhs)
             }
 
             // or
@@ -146,7 +142,7 @@ impl RegexGenerator {
                     rhs = self.generate_rec(letter_count - letter_count / 2, star_height, 0);
                 }
 
-                return format!("({}|{})", lhs, rhs);
+                format!("({}|{})", lhs, rhs)
             }
 
             // star
@@ -156,10 +152,10 @@ impl RegexGenerator {
                 }
 
                 let regex = self.generate_rec(letter_count, star_height - 1, 0);
-                if regex.len() >= 1 {
-                    return format!("({})*", regex);
+                if !regex.is_empty() {
+                    format!("({})*", regex)
                 } else {
-                    return self.generate_rec(letter_count, star_height, lookahead_count);
+                    self.generate_rec(letter_count, star_height, lookahead_count)
                 }
             }
 
@@ -174,7 +170,7 @@ impl RegexGenerator {
 
                 let regex = self.generate_lookahead(letter_count);
 
-                return format!("(?={})", regex);
+                format!("(?={})", regex)
             }
         }
     }
@@ -213,7 +209,7 @@ impl RegexGenerator {
             0 => {
                 let lhs = self.generate_lookahead_rec(letter_count / 2, star_height);
                 let rhs = self.generate_lookahead_rec(letter_count - letter_count / 2, star_height);
-                return format!("{}{}", lhs, rhs);
+                format!("{}{}", lhs, rhs)
             }
 
             // or
@@ -230,7 +226,7 @@ impl RegexGenerator {
                     rhs = self.generate_lookahead_rec(letter_count - letter_count / 2, star_height);
                 }
 
-                return format!("({}|{})", lhs, rhs);
+                format!("({}|{})", lhs, rhs)
             }
 
             // star
@@ -241,10 +237,10 @@ impl RegexGenerator {
 
                 let r = self.generate_lookahead_rec(letter_count, star_height - 1);
 
-                if r.len() >= 1 {
-                    return format!("({})*", r);
+                if !r.is_empty() {
+                    format!("({})*", r)
                 } else {
-                    return self.generate_lookahead_rec(letter_count, star_height);
+                    self.generate_lookahead_rec(letter_count, star_height)
                 }
             }
 

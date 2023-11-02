@@ -90,7 +90,9 @@ impl Automata {
 
         loop {
             let mut current = START;
-            while current < automata.size && (automata.is_start_state(current) || automata.is_finite_state(current)) {
+            while current < automata.size
+                && (automata.is_start_state(current) || automata.is_finite_state(current))
+            {
                 current += 1;
             }
 
@@ -167,7 +169,8 @@ impl Automata<String> {
             cyclic_regex_opt,
             outcoming_regex,
         ) {
-            self.transition_matrix[incoming][outcoming] = Some(format!("{}*", Self::wrap_if_needed(incoming_regex)));
+            self.transition_matrix[incoming][outcoming] =
+                Some(format!("{}*", Self::wrap_if_needed(incoming_regex)));
             return;
         }
 
@@ -221,8 +224,10 @@ impl Automata<String> {
     }
 
     fn wrap_if_needed(regex: &String) -> String {
-        if regex.len() == 1 || regex.chars().next() == Some('(') && regex.chars().last() == Some(')') {
-            return regex.to_string()
+        if regex.len() == 1
+            || regex.chars().next() == Some('(') && regex.chars().last() == Some(')')
+        {
+            return regex.to_string();
         }
 
         Self::wrap(regex)
@@ -372,7 +377,7 @@ pub fn intersection(a1: &Automata, a2: &Automata) -> Automata {
             size += 1;
         }
     }
-    
+
     let mut automata = Automata::<char>::new(size);
 
     for (state, details) in &state_details_map {
@@ -392,7 +397,11 @@ pub fn intersection(a1: &Automata, a2: &Automata) -> Automata {
     automata
 }
 
-fn intersection_bfs(a1: &Automata, a2: &Automata, state_details_map: &mut HashMap<ComplexState, Details>) {
+fn intersection_bfs(
+    a1: &Automata,
+    a2: &Automata,
+    state_details_map: &mut HashMap<ComplexState, Details>,
+) {
     let a2_transitions = a2.transform_transitions();
 
     let mut states_deq = VecDeque::<ComplexState>::new();
