@@ -39,7 +39,7 @@ impl Display for Token {
                     r += &t.to_string();
                 });
 
-                write!(f, "(<={})", r)
+                write!(f, "(?<={})", r)
             }
             Token::LookaheadEnd => write!(f, ""),
             Token::StringEnd => write!(f, "$"),
@@ -108,6 +108,11 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, &'static 
                         tokens.push(Token::LookaheadGroup(tmp));
                     }
 
+                    BracketsTokenType::Lookbehind => {
+                        let tmp = parse_look_operator(&mut extracted.chars().peekable())?;
+                        tokens.push(Token::LookbehindGroup(tmp));
+                    }
+
                     BracketsTokenType::SimpleSeq => {
                         let mut tmp = vec![];
                         tmp.push(Token::OpenBracket);
@@ -122,7 +127,6 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, &'static 
                             tokens.append(&mut tmp);
                         }
                     }
-                    _ => {}
                 }
                 continue;
             }
@@ -194,8 +198,6 @@ fn parse_regex(stream: &mut Peekable<Chars<'_>>) -> Result<Vec<Token>, &'static 
     Ok(tokens)
 }
 
-// ((ab)*)*
-
 fn simplify_brackets(tokens: Vec<Token>) -> Vec<Token> {
     let mut result = vec![];
     let mut stack = vec![];
@@ -235,28 +237,35 @@ fn simplify_brackets(tokens: Vec<Token>) -> Vec<Token> {
 }
 
 fn extract(stream: &mut Peekable<Chars<'_>>) -> Result<(BracketsTokenType, String), &'static str> {
-    let token_type: BracketsTokenType;
+    let mut token_type = BracketsTokenType::SimpleSeq;
     let mut counter = 1;
     let mut extracted_value = "".to_string();
+    let mut is_look_op = false;
     stream.next();
 
     match stream.peek() {
-        Some(t) => {
-            if t == &'?' {
-                token_type = BracketsTokenType::Lookahead;
-                stream.next();
-            } else {
-                token_type = BracketsTokenType::SimpleSeq;
-            }
+        Some(&'?') => {
+            is_look_op = true;
+            stream.next();
         }
         None => return Err(ERR_INVALID_BRACKETS_SEQUENCE),
+        Some(_) => {}
     };
 
-    if matches!(token_type, BracketsTokenType::Lookahead) {
-        if stream.peek() != Some(&'=') {
-            return Err(ERR_INVALID_LOOKAHEAD);
+    if is_look_op {
+        match stream.next() {
+            Some('=') => {
+                token_type = BracketsTokenType::Lookahead;
+            }
+            Some('<') => {
+                if matches!(stream.next(), Some('=')) {
+                    token_type = BracketsTokenType::Lookbehind;
+                } else {
+                    return Err(ERR_INVALID_LOOKAHEAD);
+                }
+            }
+            _ => return Err(ERR_INVALID_LOOKAHEAD),
         }
-        stream.next();
     }
 
     while counter != 0 && stream.peek().is_some() {
@@ -572,14 +581,13 @@ mod tests {
             tokens.len() == 2
                 && matches!(tokens[0], Token::SymbolSeq(..))
                 && matches!(&tokens[1], Token::LookaheadGroup(group) if group.len() == 1
-                && matches!(&group[0], Token::SymbolSeq(l) if l == "abc")
-
-                )
+					&& matches!(&group[0], Token::SymbolSeq(l) if l == "abc"))
         }));
 
         let regex = "^a(?=abc$)$";
+        let res = parse(regex);
 
-        assert!(parse(regex).is_ok_and(|tokens| tokens.len() == 2
+        assert!(res.is_ok_and(|tokens| tokens.len() == 2
             && matches!(tokens[0], Token::SymbolSeq(..))
             && matches!(tokens[1], Token::LookaheadGroup(..))));
 
@@ -599,6 +607,21 @@ mod tests {
 
         let regex = "^a(?=abc)*abc$";
         assert!(parse(regex).is_err());
+    }
+
+    #[test]
+    fn lookbehind_simple() {
+        let regex = "^(?<=abc)abc$";
+
+        let res = parse(regex);
+
+        assert!(res.is_ok());
+
+        let res = res.unwrap();
+
+        assert_eq!(res.len(), 2);
+        assert!(matches!(res[0], Token::LookbehindGroup(..)));
+        assert!(matches!(res[1], Token::SymbolSeq(..)));
     }
 
     #[test]

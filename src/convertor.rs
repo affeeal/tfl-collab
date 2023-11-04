@@ -22,6 +22,24 @@ pub fn gen_rec(r: &str) -> Result<Automata, String> {
                 }
             }
             Token::CloseBracket => brackets_counter -= 1,
+            Token::LookbehindGroup(_) => {
+                if brackets_counter == 0 {
+                    let a1 = Automata::from_regex(&s);
+                    let a2 = Automata::from_regex(&tokens[i].to_string());
+
+                    let r3 = tokens[(i + 1)..]
+                        .iter()
+                        .fold("^".to_string(), |acc, t| acc + &t.to_string())
+                        + "$";
+
+                    return Ok(ndfa::concatenation(
+                        &ndfa::intersection(&a1, &a2),
+                        &gen_rec(&r3)?,
+                    ));
+                } else {
+					
+				}
+            }
             Token::LookaheadGroup(group) => {
                 if brackets_counter == 0 {
                     let mut tmp: String = group.iter().fold("".to_string(), |acc, t| {
